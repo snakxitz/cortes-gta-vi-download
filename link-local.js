@@ -102,6 +102,31 @@ export async function fetchLinkedVideo(input, onProgress = () => {}, { signal } 
     throw new Error("O navegador não conseguiu acessar o arquivo. Confira se o link está ativo e se o servidor permite acesso por este site (CORS).");
   }
 
+  return readVideoResponse(response, link.url, onProgress, signal);
+}
+
+export async function fetchYoutubeVideo(endpoint, source, onProgress, { signal } = {}) {
+  const videoId = new URL(source.url).searchParams.get("v");
+  if (!YOUTUBE_ID.test(videoId ?? "")) throw new Error("Cole o link de um vídeo do YouTube.");
+  const url = new URL(endpoint);
+  url.pathname = url.pathname.replace(/\/$/, "") + "/importar/" + videoId;
+  let response;
+  try {
+    response = await fetch(url, { method: "POST", credentials: "omit", redirect: "error", signal });
+  } catch {
+    signal?.throwIfAborted();
+    throw new Error("O servidor de importação do YouTube está inacessível. Tente novamente ou envie o MP4.");
+  }
+  if (!response.ok) {
+    const info = await response.json().catch(() => null);
+    signal?.throwIfAborted();
+    const message = typeof info?.detail === "string" && info.detail.length <= 300 ? info.detail : null;
+    throw new Error(message ?? "O servidor não conseguiu importar este vídeo do YouTube.");
+  }
+  return readVideoResponse(response, url.href, onProgress, signal);
+}
+
+async function readVideoResponse(response, fallbackUrl, onProgress, signal) {
   let reader;
   let completed = false;
   try {
@@ -110,7 +135,8 @@ export async function fetchLinkedVideo(input, onProgress = () => {}, { signal } 
     }
     if (response.status === 206) throw new Error("O servidor enviou só uma parte do vídeo. Use um link para o arquivo completo.");
 
-    const responseUrl = httpsUrl(response.url || link.url);
+    const address = response.url || fallbackUrl;
+    const responseUrl = fallbackUrl.startsWith("https:") ? httpsUrl(address) : new URL(address);
     const declared = (response.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
     if (/^text\/html$|^application\/xhtml\+xml$/.test(declared)) {
       throw new Error("Esse link abriu uma página. Cole o endereço direto do arquivo MP4 ou MOV.");

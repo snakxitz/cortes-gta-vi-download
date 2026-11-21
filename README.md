@@ -15,3 +15,14 @@ O processamento roda no navegador. Na primeira execução, o navegador baixa o m
 O [ZIP da versão para GitHub Pages](downloads/Cortes-GTA-VI-GitHub-Pages.zip?raw=true) reúne os arquivos estáticos.
 
 Carregue os arquivos deste pacote na raiz do repositório. Em **Settings → Pages**, escolha **Deploy from a branch**, **main** e **/(root)**. O GitHub mostra a URL assim que terminar.
+
+## Importação de links do YouTube
+
+O importador recebe um vídeo próprio ou autorizado e entrega um MP4 ao estúdio. A transcrição, os cortes, as capas e a biblioteca continuam no navegador. O importador recebe um vídeo por vez, de 65 segundos a 2 horas, até 250 MB.
+
+1. Em uma hospedagem com Docker, construa a imagem com `docker build -t cortes-youtube servidor-youtube`.
+2. Rode o contêiner com `docker run --rm --init -p 127.0.0.1:8080:8080 -e CORTES_ORIGIN=https://snakxitz.github.io cortes-youtube`. Use como origem apenas protocolo e domínio da página. Para hospedar em outro endereço, ajuste esse valor.
+3. Exponha a porta por um proxy HTTPS para o qual você tenha acesso. O proxy precisa permitir a importação por até 3 minutos antes de começar a resposta. Verifique `GET /health` e faça um teste com um vídeo autorizado no próprio servidor.
+4. No `config.json` do site, troque `youtubeImport` de `null` para o endereço HTTPS do importador e publique. O campo passa a aceitar links do YouTube. O parâmetro `motor` atende ao painel externo legado.
+
+O limite de um importador simultâneo vale por processo. A origem configurada limita o uso pelo navegador. Para um lançamento aberto, configure limites de requisição também no proxy da hospedagem.

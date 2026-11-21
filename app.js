@@ -1,5 +1,5 @@
 import { formatTime, selectClips } from "./clip-local.js";
-import { classifyVideoLink, fetchLinkedVideo } from "./link-local.js";
+import { classifyVideoLink, fetchLinkedVideo, fetchYoutubeVideo } from "./link-local.js";
 import { generatePublication } from "./publication-local.js";
 import { mountLibrary } from "./studio-library.js";
 const input = document.querySelector("#entrada");
@@ -22,6 +22,7 @@ let activeJob;
 let localFile;
 let preview;
 let backend;
+let youtubeImport;
 input.addEventListener("change", () => {
   if (preview) URL.revokeObjectURL(preview);
   preview = undefined;
@@ -56,6 +57,19 @@ video.addEventListener("error", () => {
   video.hidden = true;
 });
 fetch("config.json").then(response => response.ok ? response.json() : null).then(config => {
+  if (typeof config?.youtubeImport === "string" && config.youtubeImport) {
+    const endpoint = new URL(config.youtubeImport);
+    const local = ["localhost", "127.0.0.1"].includes(location.hostname)
+      && ["localhost", "127.0.0.1"].includes(endpoint.hostname);
+    if ((endpoint.protocol === "https:" || (local && endpoint.protocol === "http:"))
+        && !endpoint.username && !endpoint.password && !endpoint.search && !endpoint.hash) {
+      youtubeImport = endpoint;
+      document.querySelector('label[for="link"]').textContent = "Link do YouTube, MP4 ou MOV";
+      linkField.placeholder = "https://www.youtube.com/watch?v=…";
+      document.querySelector("#limite-link").textContent = "Use um vídeo próprio ou autorizado. Links aceitam arquivos de até 250 MB.";
+      refreshLinkStatus();
+    }
+  }
   if (typeof config?.motor !== "string" || !config.motor) return;
   const endpoint = new URL(config.motor);
   if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) return;
@@ -84,7 +98,7 @@ fetch("config.json").then(response => response.ok ? response.json() : null).then
 const filePanel = document.querySelector("#painel-arquivo");
 const linkPanel = document.querySelector("#painel-link");
 function showYouTubeNotice(youtube) {
-  const needsFile = youtube && !backend;
+  const needsFile = youtube && !youtubeImport && !backend;
   youtubeActions.hidden = !needsFile;
   generateLink.disabled = Boolean(activeJob) || needsFile;
   if (needsFile) {
@@ -141,8 +155,10 @@ linkPanel.addEventListener("submit", event => {
   if (source.kind === "youtube") {
     linkField.value = source.url;
     showYouTubeNotice(true);
-    if (backend) linkFeedback.textContent = "Para este link, abra o gerador no servidor e cole o endereço lá.";
-    return;
+    if (!youtubeImport) {
+      if (backend) linkFeedback.textContent = "Para este link, abra o gerador no servidor e cole o endereço lá.";
+      return;
+    }
   }
   linkFeedback.textContent = "";
   void runJob(source);
@@ -203,12 +219,15 @@ async function runJob(source) {
   };
   try {
     let file = source.file;
-    if (source.kind === "direct") {
-      phase = "baixar o vídeo do link";
-      report(0, "Baixando o vídeo do link…");
-      file = await fetchLinkedVideo(source.url, fraction => {
-        report((fraction ?? 0) * 8, "Baixando o vídeo do link…");
-      }, { signal });
+    if (source.kind !== "file") {
+      const youtube = source.kind === "youtube";
+      phase = youtube ? "importar o vídeo do YouTube" : "baixar o vídeo do link";
+      const message = youtube ? "Importando o vídeo do YouTube…" : "Baixando o vídeo do link…";
+      report(0, message);
+      const downloading = fraction => report((fraction ?? 0) * 8, message);
+      file = youtube
+        ? await fetchYoutubeVideo(youtubeImport, source, downloading, { signal })
+        : await fetchLinkedVideo(source.url, downloading, { signal });
     }
     phase = "preparar o vídeo";
     const [{ createVideoSession }, { createTranscriptionSession }] = await Promise.all([
