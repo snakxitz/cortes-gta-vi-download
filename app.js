@@ -58,8 +58,11 @@ video.addEventListener("error", () => {
   video.hidden = true;
 });
 fetch("config.json").then(response => response.ok ? response.json() : null).then(config => {
-  if (typeof config?.youtubeImport === "string" && config.youtubeImport) {
-    const endpoint = new URL(config.youtubeImport);
+  const params = new URLSearchParams(location.search);
+  const testingImport = !config?.youtubeImport && params.get("teste-youtube") === "1";
+  const importAddress = testingImport ? config?.youtubeImportTest : config?.youtubeImport;
+  if (typeof importAddress === "string" && importAddress) {
+    const endpoint = new URL(importAddress);
     const local = ["localhost", "127.0.0.1"].includes(location.hostname)
       && ["localhost", "127.0.0.1"].includes(endpoint.hostname);
     if ((endpoint.protocol === "https:" || (local && endpoint.protocol === "http:"))
@@ -68,6 +71,15 @@ fetch("config.json").then(response => response.ok ? response.json() : null).then
       document.querySelector('label[for="link"]').textContent = "Link do YouTube, MP4 ou MOV";
       linkField.placeholder = "https://www.youtube.com/watch?v=…";
       document.querySelector("#limite-link").textContent = "Use um vídeo próprio ou autorizado. Links aceitam arquivos de até 250 MB.";
+      if (testingImport) {
+        document.querySelector("#estado").textContent =
+          "Teste do importador do YouTube. O primeiro pedido pode demorar enquanto o servidor liga.";
+        sourceModes.find(choice => choice.value === "link").click();
+        const videoId = params.get("video");
+        if (/^[A-Za-z0-9_-]{11}$/.test(videoId ?? "")) {
+          linkField.value = "https://www.youtube.com/watch?v=" + videoId;
+        }
+      }
       refreshLinkStatus();
     }
   }

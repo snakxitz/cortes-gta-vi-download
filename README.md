@@ -33,6 +33,8 @@ O importador recebe um vídeo próprio ou autorizado e entrega um MP4 ao estúdi
 
 4. Depois de confirmar que o arquivo recebido é um MP4 válido, informe a URL HTTPS do serviço em `youtubeImport` no `config.json` e publique.
 
+Enquanto `youtubeImport` estiver vazio, o endereço em `youtubeImportTest` pode ser usado abrindo o estúdio com `?teste-youtube=1#estudio`. Esse endereço de teste permite conferir a importação antes de habilitá-la no site inteiro.
+
 ### Instalação em servidor com Docker
 
 1. Em uma hospedagem com Docker, construa a imagem com `docker build -t cortes-youtube servidor-youtube`.
