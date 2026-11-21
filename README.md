@@ -4,12 +4,14 @@ Use o estúdio para gerar 1, 3 ou 5 cortes verticais de 65 segundos de um vídeo
 
 ## Como usar
 
-1. Abra o [Cortes GTA VI no navegador](https://snakxitz.github.io/cortes-gta-vi-download/#estudio).
+1. Após ativar o GitHub Pages, abra o [Cortes GTA VI no navegador](https://snakxitz.github.io/cortes-gta-vi-download/#estudio).
 2. Selecione um MP4 ou MOV com narração sobre GTA VI. Escolha o idioma e a quantidade.
 3. Mantenha a aba aberta durante a geração. Use a biblioteca para assistir, editar e baixar.
 
 O processamento roda no navegador. Na primeira execução, o navegador baixa o modelo de transcrição e o motor de vídeo. A biblioteca fica no navegador usado para criar os cortes. Links diretos de MP4 ou MOV funcionam quando a origem permite o acesso pelo navegador. Para vídeos próprios no YouTube, baixe o arquivo pelo YouTube Studio e envie pelo seletor.
 
 ## Publicação
+
+O [ZIP da versão para GitHub Pages](downloads/Cortes-GTA-VI-GitHub-Pages.zip?raw=true) reúne os arquivos estáticos.
 
 Carregue os arquivos deste pacote na raiz do repositório. Em **Settings → Pages**, escolha **Deploy from a branch**, **main** e **/(root)**. O GitHub mostra a URL assim que terminar.
