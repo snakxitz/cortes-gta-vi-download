@@ -19,6 +19,26 @@ MAX_BYTES = 250 * 1024 * 1024
 IMPORT_TIMEOUT = 180
 IMPORT_SLOT = BoundedSemaphore(1)
 LOGGER = logging.getLogger("uvicorn.error")
+VIDEO_FORMAT = "bv[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]"
+
+IMPORT_ERRORS = (
+    ("youtube-verificacao", 422, r"sign in to confirm.{0,100}not a bot|confirm you.re not a bot",
+     "O YouTube exigiu verificação no servidor de importação. Para gerar o corte desse vídeo, envie o MP4 pelo seletor."),
+    ("youtube-restricao", 422, r"private video|members.only|age.restricted|sign in to confirm your age|"
+     r"not available in your country|video unavailable|this video is unavailable",
+     "O YouTube informou que o vídeo está indisponível ou restrito para o importador. Envie o arquivo MP4 se tiver acesso a ele."),
+    ("arquivo-grande", 413, r"larger than max.filesize|exceeds.{0,40}max.filesize|file is too large",
+     "O vídeo excede o limite de 250 MB por link."),
+    ("duracao-ou-live", 422, r"does not pass filter|doesn.t pass filter|live stream is not currently live|"
+     r"this live event will begin|is a live stream",
+     "O importador aceita vídeos gravados de 30 segundos a 2 horas."),
+    ("formato-indisponivel", 422, r"requested format is not available|no video formats found|only images are available|"
+     r"no formats found",
+     "O YouTube não ofereceu um formato de vídeo e áudio compatível para este link. Envie o MP4 pelo seletor."),
+    ("rede-youtube", 502, r"http error (403|429|5\d\d)|unable to connect to proxy|connection refused|"
+     r"temporary failure in name resolution|read timed out|remote end closed connection",
+     "O servidor não conseguiu acessar o YouTube neste momento. Tente mais tarde ou envie o MP4 pelo seletor."),
+)
 
 origin = os.environ.get("CORTES_ORIGIN", "")
 parsed = urlsplit(origin)
@@ -45,15 +65,17 @@ async def health():
 
 def download(video_id, directory):
     output = directory / "origem.mp4"
+    title_file = directory / "titulo.jsonl"
     command = [
         sys.executable, "-m", "yt_dlp", "--ignore-config",
-        "--no-playlist", "--no-simulate", "--quiet", "--no-warnings",
+        "--no-playlist", "--no-simulate", "--no-progress",
         "--socket-timeout", "12", "--retries", "1", "--fragment-retries", "1",
         "--match-filter", "!is_live & duration >= 30 & duration <= 7200",
         "--max-filesize", "250M",
-        "-f", "bv[height<=720][ext=mp4][protocol=https]+ba[ext=m4a][protocol=https]/b[height<=720][ext=mp4][protocol=https]",
+        "-f", VIDEO_FORMAT,
         "--merge-output-format", "mp4", "-o", str(directory / "origem.%(ext)s"),
-        "--print", "after_move:%(title)j", "--", "https://www.youtube.com/watch?v=" + video_id,
+        "--print-to-file", "after_move:%(title)j", str(title_file),
+        "--no-quiet", "--", "https://www.youtube.com/watch?v=" + video_id,
     ]
     with subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
@@ -69,8 +91,12 @@ def download(video_id, directory):
             process.communicate()
             raise HTTPException(504, "O YouTube demorou a responder. Envie o MP4 ou tente mais tarde.") from None
         if process.returncode or not output.is_file():
-            if stderr.strip():
-                LOGGER.info("Importação %s indisponível (status %s).", video_id, process.returncode)
+            report = stdout + "\n" + stderr
+            for code, status, pattern, message in IMPORT_ERRORS:
+                if re.search(pattern, report, re.IGNORECASE):
+                    LOGGER.info("Importação %s: %s (status %s).", video_id, code, process.returncode)
+                    raise HTTPException(status, message)
+            LOGGER.info("Importação %s: falha sem diagnóstico (status %s).", video_id, process.returncode)
             raise HTTPException(
                 422, "O servidor não conseguiu baixar esse vídeo. Use um vídeo disponível de "
                 "30 segundos a 2 horas, com até 250 MB, ou envie o MP4 pelo seletor.",
@@ -81,8 +107,8 @@ def download(video_id, directory):
     if not output.stat().st_size:
         raise HTTPException(422, "O servidor recebeu um vídeo vazio.")
     try:
-        title = json.loads(stdout.strip().splitlines()[-1])
-    except (ValueError, IndexError):
+        title = json.loads(title_file.read_text(encoding="utf-8").strip().splitlines()[-1])
+    except (OSError, ValueError, IndexError):
         title = ""
     if not isinstance(title, str):
         title = ""
