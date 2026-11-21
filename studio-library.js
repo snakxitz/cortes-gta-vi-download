@@ -86,7 +86,7 @@ export function mountLibrary() {
     download.download = mediaName(entry) + ".mp4";
     get("nome-corte").textContent = entry.title;
     get("info-corte").textContent = formatTime(entry.start) + "–" + formatTime(entry.end)
-      + " do original · 65 s · 9:16";
+      + " do original · " + Math.round(entry.end - entry.start) + " s · 9:16";
     for (const [key, input] of Object.entries(fields)) {
       input.value = key === "tags" ? entry.tags.join(", ") : entry[key];
     }

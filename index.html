@@ -19,7 +19,7 @@
 <div class="hero-content">
 <p class="platforms">YouTube Shorts · TikTok</p>
 <h1 id="titulo">GTA VI<br><em>em corte.</em></h1>
-<p>Cortes verticais de 65 segundos, com título, chamada para ação e palavras-chave para revisar antes de publicar.</p>
+<p>Cortes verticais de 30 ou 65 segundos, com título, chamada para ação e palavras-chave para revisar antes de publicar.</p>
 <a class="button" href="#estudio">Abrir estúdio</a>
 </div>
 <p class="hero-format">MP4 · 9:16</p>
@@ -29,7 +29,7 @@
 <h2>Do vídeo longo ao corte vertical</h2>
 <div class="steps-grid">
 <div><h3>Escolha a origem</h3><p>Escolha um MP4 ou MOV próprio ou cole um link direto para o arquivo.</p></div>
-<div><h3>Revise os trechos</h3><p>Escolha 1, 3 ou 5 cortes de 65 segundos em 1080 × 1920.</p></div>
+<div><h3>Revise os trechos</h3><p>Escolha 1, 3 ou 5 cortes de 30 ou 65 segundos em 1080 × 1920.</p></div>
 <div><h3>Prepare a publicação</h3><p>Edite título, descrição e tags e baixe a capa do corte.</p></div>
 </div>
 </section>
@@ -56,7 +56,7 @@
 <div id="painel-arquivo">
 <label for="entrada">Vídeo em MP4 ou MOV</label>
 <input id="entrada" type="file" accept=".mp4,.mov,video/mp4,video/quicktime">
-<p id="arquivo" role="status">MP4 ou MOV de 65 segundos a 2 horas, com até 2 GB.</p>
+<p id="arquivo" role="status">MP4 ou MOV de 30 segundos a 2 horas, com até 2 GB.</p>
 </div>
 <form id="painel-link" hidden>
 <label for="link">Link direto de MP4 ou MOV</label>
@@ -70,6 +70,13 @@
 </form>
 <label for="idioma-local">Idioma da narração</label>
 <select id="idioma-local"><option value="pt">Português</option><option value="en">Inglês</option></select>
+<fieldset class="quantidade">
+<legend>Duração de cada Short</legend>
+<div class="origens">
+<label><input type="radio" name="duracao-corte" value="30"> 30 segundos</label>
+<label><input type="radio" name="duracao-corte" value="65" checked> 65 segundos</label>
+</div>
+</fieldset>
 <fieldset class="quantidade">
 <legend>Quantidade de cortes</legend>
 <div class="origens">

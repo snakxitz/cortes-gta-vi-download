@@ -49,7 +49,7 @@ def download(video_id, directory):
         sys.executable, "-m", "yt_dlp", "--ignore-config",
         "--no-playlist", "--no-simulate", "--quiet", "--no-warnings",
         "--socket-timeout", "12", "--retries", "1", "--fragment-retries", "1",
-        "--match-filter", "!is_live & duration >= 65 & duration <= 7200",
+        "--match-filter", "!is_live & duration >= 30 & duration <= 7200",
         "--max-filesize", "250M",
         "-f", "bv[height<=720][ext=mp4][protocol=https]+ba[ext=m4a][protocol=https]/b[height<=720][ext=mp4][protocol=https]",
         "--merge-output-format", "mp4", "-o", str(directory / "origem.%(ext)s"),
@@ -73,7 +73,7 @@ def download(video_id, directory):
                 LOGGER.info("Importação %s indisponível (status %s).", video_id, process.returncode)
             raise HTTPException(
                 422, "O servidor não conseguiu baixar esse vídeo. Use um vídeo disponível de "
-                "65 segundos a 2 horas, com até 250 MB, ou envie o MP4 pelo seletor.",
+                "30 segundos a 2 horas, com até 250 MB, ou envie o MP4 pelo seletor.",
             )
 
     if output.stat().st_size > MAX_BYTES:

@@ -1,11 +1,11 @@
 # Cortes GTA VI no navegador
 
-Use o estúdio para gerar 1, 3 ou 5 cortes verticais de 65 segundos de um vídeo próprio. Cada resultado inclui o MP4, a capa em JPG e sugestões editáveis de título, descrição e tags.
+Use o estúdio para gerar 1, 3 ou 5 cortes verticais de 30 ou 65 segundos de um vídeo próprio. Cada resultado inclui o MP4, a capa em JPG e sugestões editáveis de título, descrição e tags.
 
 ## Como usar
 
 1. Após ativar o GitHub Pages, abra o [Cortes GTA VI no navegador](https://snakxitz.github.io/cortes-gta-vi-download/#estudio).
-2. Selecione um MP4 ou MOV com narração sobre GTA VI. Escolha o idioma e a quantidade.
+2. Selecione um MP4 ou MOV com narração sobre GTA VI. Escolha o idioma, a duração de cada Short e a quantidade.
 3. Mantenha a aba aberta durante a geração. Use a biblioteca para assistir, editar e baixar.
 
 O processamento roda no navegador. Na primeira execução, o navegador baixa o modelo de transcrição e o motor de vídeo. A biblioteca fica no navegador usado para criar os cortes. Links diretos de MP4 ou MOV funcionam quando a origem permite o acesso pelo navegador. Para vídeos próprios no YouTube, baixe o arquivo pelo YouTube Studio e envie pelo seletor.
@@ -18,7 +18,7 @@ Carregue os arquivos deste pacote na raiz do repositório. Em **Settings → Pag
 
 ## Importação de links do YouTube
 
-O importador recebe um vídeo próprio ou autorizado e entrega um MP4 ao estúdio. A transcrição, os cortes, as capas e a biblioteca continuam no navegador. O importador recebe um vídeo por vez, de 65 segundos a 2 horas, até 250 MB.
+O importador recebe um vídeo próprio ou autorizado e entrega um MP4 ao estúdio. A transcrição, os cortes, as capas e a biblioteca continuam no navegador. O importador recebe um vídeo por vez, de 30 segundos a 2 horas, até 250 MB.
 
 1. Em uma hospedagem com Docker, construa a imagem com `docker build -t cortes-youtube servidor-youtube`.
 2. Rode o contêiner com `docker run --rm --init -p 127.0.0.1:8080:8080 -e CORTES_ORIGIN=https://snakxitz.github.io cortes-youtube`. Use como origem apenas protocolo e domínio da página. Para hospedar em outro endereço, ajuste esse valor.

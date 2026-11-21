@@ -1,4 +1,5 @@
 export const CLIP_SECONDS = 65;
+export const CLIP_LENGTHS = Object.freeze([30, CLIP_SECONDS]);
 
 const signals = [
   ["GTA VI", 2, /\b(?:gta\s*(?:6|vi|seis)|grand theft auto\s*(?:6|vi|seis)|vice city|leonida|lucia caminos|jason duval)\b/],
@@ -75,7 +76,7 @@ function scoreWindow(start, end, parts, first, last, repeats) {
     if (offset <= 7 && (isHook || hasStory)) {
       opening = Math.max(opening, (3 + Number(isHook) * 2) * (1 - offset / 10) * fraction);
     }
-    if (offset >= 48 && isCTA) closing = Math.max(closing, 2 * fraction);
+    if (offset >= (end - start) * 48 / CLIP_SECONDS && isCTA) closing = Math.max(closing, 2 * fraction);
     const strength = quality + (offset <= 7 ? 2 : 0) - offset * 0.05;
     if (strength > hookStrength) {
       hook = { text: part.text, start: Math.max(start, part.start), end: Math.min(end, part.end) };
@@ -139,9 +140,10 @@ function distinctScore(clip, others) {
   return score;
 }
 
-export function selectClips(segments, duration, filename, count = 1) {
-  if (!Number.isFinite(duration) || duration < CLIP_SECONDS) {
-    throw new Error("Envie um vídeo com pelo menos 65 segundos.");
+export function selectClips(segments, duration, filename, count = 1, seconds = CLIP_SECONDS) {
+  if (!CLIP_LENGTHS.includes(seconds)) throw new Error("Escolha cortes de 30 ou 65 segundos.");
+  if (!Number.isFinite(duration) || duration < seconds) {
+    throw new Error("Envie um vídeo com pelo menos " + seconds + " segundos.");
   }
   const repeats = new Map();
   const parts = [];
@@ -177,7 +179,7 @@ export function selectClips(segments, duration, filename, count = 1) {
   const partStarts = parts.map(part => part.start);
   let maxEnd = 0;
   const partEnds = parts.map(part => (maxEnd = Math.max(maxEnd, part.end)));
-  const latest = duration - CLIP_SECONDS;
+  const latest = duration - seconds;
   const starts = new Set([0, latest]);
   for (let start = 0; start <= latest; start += 5) {
     starts.add(start);
@@ -190,13 +192,13 @@ export function selectClips(segments, duration, filename, count = 1) {
   }
   const candidates = [];
   for (const start of [...starts].sort((left, right) => left - right)) {
-    const end = start + CLIP_SECONDS;
+    const end = start + seconds;
     const first = lowerBound(partEnds, start, true);
     const last = lowerBound(partStarts, end);
     const candidate = scoreWindow(start, end, parts, first, last, repeats);
     if (candidate) candidates.push(candidate);
   }
-  const limit = Math.min(5, Math.max(1, Math.floor(Number(count)) || 1), Math.floor(duration / CLIP_SECONDS));
+  const limit = Math.min(5, Math.max(1, Math.floor(Number(count)) || 1), Math.floor(duration / seconds));
   const chosen = strongestSchedule(candidates, limit);
 
   // Keep the count and non-overlap while preferring similarly strong, different subjects.

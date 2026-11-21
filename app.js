@@ -17,6 +17,7 @@ const linkFeedback = document.querySelector("#retorno-link");
 const youtubeActions = document.querySelector("#acoes-youtube");
 const sourceModes = [...document.querySelectorAll('input[name="origem"]')];
 const cutCounts = [...document.querySelectorAll('input[name="quantidade"]')];
+const cutLengths = [...document.querySelectorAll('input[name="duracao-corte"]')];
 const library = mountLibrary();
 let activeJob;
 let localFile;
@@ -34,7 +35,7 @@ input.addEventListener("change", () => {
   video.removeAttribute("src");
   const file = input.files[0];
   if (!file) {
-    status.textContent = "MP4 ou MOV de 65 segundos a 2 horas, com até 2 GB.";
+    status.textContent = "MP4 ou MOV de 30 segundos a 2 horas, com até 2 GB.";
     return;
   }
   if (!/\.(mp4|mov)$/i.test(file.name)) {
@@ -197,11 +198,13 @@ generate.addEventListener("click", () => {
 async function runJob(source) {
   if (activeJob) return;
   const requested = Number(cutCounts.find(choice => choice.checked).value);
+  const seconds = Number(cutLengths.find(choice => choice.checked).value);
   activeJob = new AbortController();
   const { signal } = activeJob;
   input.disabled = language.disabled = generate.disabled = linkField.disabled = generateLink.disabled = true;
   for (const choice of sourceModes) choice.disabled = true;
   for (const choice of cutCounts) choice.disabled = true;
+  for (const choice of cutLengths) choice.disabled = true;
   cancel.disabled = false;
   cancel.hidden = false;
   video.pause();
@@ -237,6 +240,9 @@ async function runJob(source) {
     videoSession = await createVideoSession(file, (fraction, message) => {
       report(8 + fraction * 8, message || "Lendo o vídeo…");
     }, { signal });
+    if (videoSession.duration < seconds) {
+      throw new Error("Escolha um vídeo de pelo menos " + seconds + " segundos ou reduza a duração do corte.");
+    }
     phase = "carregar o modelo de transcrição";
     report(16, "Carregando o modelo de transcrição…");
     speechSession = await createTranscriptionSession(fraction => {
@@ -279,9 +285,9 @@ async function runJob(source) {
 
     phase = "selecionar os trechos";
     signal.throwIfAborted();
-    report(65, "Selecionando trechos de 65 s…");
-    const clips = selectClips(transcript, duration, file.name, requested);
-    if (!clips.length) throw new Error("Nenhum trecho de 65 segundos disponível.");
+    report(65, "Selecionando trechos de " + seconds + " s…");
+    const clips = selectClips(transcript, duration, file.name, requested, seconds);
+    if (!clips.length) throw new Error("Nenhum trecho de " + seconds + " segundos disponível.");
     const createdAt = Date.now();
     const span = 35 / clips.length;
     for (const [order, clip] of clips.entries()) {
@@ -295,7 +301,7 @@ async function runJob(source) {
       report(step, exporting);
       const output = await videoSession.render(clip.start, fraction => {
         report(step + span * .84 * fraction, exporting);
-      });
+      }, { seconds });
       signal.throwIfAborted();
       if (order === clips.length - 1) {
         videoSession.close();
@@ -312,7 +318,9 @@ async function runJob(source) {
     }
     signal.throwIfAborted();
     const ready = batchResult(completed, saved);
-    const limited = completed < requested ? " O vídeo rendeu " + completed + " de " + requested + " cortes de 65 s sem sobreposição." : "";
+    const limited = completed < requested
+      ? " O vídeo rendeu " + completed + " de " + requested + " cortes de " + seconds + " s sem sobreposição."
+      : "";
     report(100, ready + limited);
     library.reveal(ready + limited);
   } catch (error) {
@@ -342,6 +350,7 @@ async function runJob(source) {
         generate.disabled = !localFile;
         for (const choice of sourceModes) choice.disabled = false;
         for (const choice of cutCounts) choice.disabled = false;
+        for (const choice of cutLengths) choice.disabled = false;
       }
     }
   }
