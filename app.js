@@ -19,6 +19,7 @@ const sourceModes = [...document.querySelectorAll('input[name="origem"]')];
 const cutCounts = [...document.querySelectorAll('input[name="quantidade"]')];
 const cutLengths = [...document.querySelectorAll('input[name="duracao-corte"]')];
 const library = mountLibrary();
+const youtubeImportPhase = "importar o vídeo do YouTube";
 let activeJob;
 let localFile;
 let preview;
@@ -236,7 +237,7 @@ async function runJob(source) {
     let file = source.file;
     if (source.kind !== "file") {
       const youtube = source.kind === "youtube";
-      phase = youtube ? "importar o vídeo do YouTube" : "baixar o vídeo do link";
+      phase = youtube ? youtubeImportPhase : "baixar o vídeo do link";
       const message = youtube ? "Importando o vídeo do YouTube…" : "Baixando o vídeo do link…";
       report(0, message);
       const downloading = fraction => report((fraction ?? 0) * 8, message);
@@ -341,7 +342,14 @@ async function runJob(source) {
       localStatus.textContent = "Geração cancelada.";
     } else {
       const detail = error instanceof Error && error.message ? " " + error.message : "";
-      localStatus.textContent = "Não foi possível " + phase + "." + detail;
+      const message = "Não foi possível " + phase + "." + detail;
+      if (phase === youtubeImportPhase) {
+        linkFeedback.textContent = message;
+        youtubeActions.hidden = false;
+        localStatus.textContent = "";
+      } else {
+        localStatus.textContent = message;
+      }
     }
     if (completed) {
       const ready = batchResult(completed, saved);
@@ -358,7 +366,7 @@ async function runJob(source) {
         activeJob = undefined;
         cancel.hidden = true;
         input.disabled = language.disabled = linkField.disabled = false;
-        generateLink.disabled = !youtubeActions.hidden;
+        generateLink.disabled = !youtubeActions.hidden && !youtubeImport;
         generate.disabled = !localFile;
         for (const choice of sourceModes) choice.disabled = false;
         for (const choice of cutCounts) choice.disabled = false;
