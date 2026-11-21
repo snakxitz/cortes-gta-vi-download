@@ -20,6 +20,21 @@ Carregue os arquivos deste pacote na raiz do repositório. Em **Settings → Pag
 
 O importador recebe um vídeo próprio ou autorizado e entrega um MP4 ao estúdio. A transcrição, os cortes, as capas e a biblioteca continuam no navegador. O importador recebe um vídeo por vez, de 30 segundos a 2 horas, até 250 MB.
 
+### Teste no Render
+
+1. Abra [Deploy to Render](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2Fsnakxitz%2Fcortes-gta-vi-download) e entre na sua conta. O `render.yaml` configura um Web Service Docker no plano gratuito para o estúdio oficial.
+2. Confirme a implantação e aguarde o serviço ficar **Live**. Abra o endereço `onrender.com` do serviço com `/health` no final. A resposta esperada é `{"status":"ok"}`.
+3. Antes de habilitar a opção no site, teste a importação de um vídeo autorizado. Substitua `ID_DO_VIDEO` pelo ID do seu vídeo e `ENDERECO_DO_SERVICO` pela URL HTTPS do Render.
+
+   ```sh
+   curl --fail-with-body -X POST -H 'Origin: https://snakxitz.github.io' \
+     'ENDERECO_DO_SERVICO/importar/ID_DO_VIDEO' -o teste.mp4
+   ```
+
+4. Depois de confirmar que o arquivo recebido é um MP4 válido, informe a URL HTTPS do serviço em `youtubeImport` no `config.json` e publique.
+
+### Instalação em servidor com Docker
+
 1. Em uma hospedagem com Docker, construa a imagem com `docker build -t cortes-youtube servidor-youtube`.
 2. Rode o contêiner com `docker run --rm --init -p 127.0.0.1:8080:8080 -e CORTES_ORIGIN=https://snakxitz.github.io cortes-youtube`. Use como origem apenas protocolo e domínio da página. Para hospedar em outro endereço, ajuste esse valor.
 3. Exponha a porta por um proxy HTTPS para o qual você tenha acesso. O proxy precisa permitir a importação por até 3 minutos antes de começar a resposta. Verifique `GET /health` e faça um teste com um vídeo autorizado no próprio servidor.

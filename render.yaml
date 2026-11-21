@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: cortes-gta-vi-importador
+    runtime: docker
+    plan: free
+    branch: main
+    dockerfilePath: ./servidor-youtube/Dockerfile
+    dockerContext: ./servidor-youtube
+    healthCheckPath: /health
+    buildFilter:
+      paths:
+        - servidor-youtube/**
+        - render.yaml
+    envVars:
+      - key: CORTES_ORIGIN
+        value: https://snakxitz.github.io
+      - key: PORT
+        value: "8080"
