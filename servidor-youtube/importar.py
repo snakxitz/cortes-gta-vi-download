@@ -20,6 +20,7 @@ IMPORT_TIMEOUT = 180
 IMPORT_SLOT = BoundedSemaphore(1)
 LOGGER = logging.getLogger("uvicorn.error")
 VIDEO_FORMAT = "bv[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]"
+DEPLOY_REVISION = os.environ.get("RENDER_GIT_COMMIT", "local")[:7]
 
 IMPORT_ERRORS = (
     ("youtube-verificacao", 422, r"sign in to confirm.{0,100}not a bot|confirm you.re not a bot",
@@ -63,6 +64,19 @@ async def health():
     return {"status": "ok"}
 
 
+def log_import_error(video_id, code, returncode, stderr, stdout):
+    lines = [line.strip() for line in (stderr or stdout).splitlines() if line.strip()]
+    errors = [line for line in lines if line.startswith("ERROR:")]
+    last_line = (errors or lines or ["yt-dlp terminou sem mensagem"])[-1]
+    last_line = re.sub(r"https?://\S+|/tmp/\S+", "[endereço omitido]", last_line)
+    last_line = re.sub(r"(?i)\b(authorization|cookie|token)\s*[:=].*", "[credencial omitida]", last_line)
+    last_line = "".join(char for char in last_line if char.isprintable())
+    LOGGER.warning(
+        "Importação %s · commit %s · %s · status %s · %s",
+        video_id, DEPLOY_REVISION, code, returncode, last_line[:500],
+    )
+
+
 def download(video_id, directory):
     output = directory / "origem.mp4"
     title_file = directory / "titulo.jsonl"
@@ -88,18 +102,19 @@ def download(video_id, directory):
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-            process.communicate()
+            stdout, stderr = process.communicate()
+            log_import_error(video_id, "tempo-limite", process.returncode, stderr, stdout)
             raise HTTPException(504, "O YouTube demorou a responder. Envie o MP4 ou tente mais tarde.") from None
         if process.returncode or not output.is_file():
             report = stdout + "\n" + stderr
             for code, status, pattern, message in IMPORT_ERRORS:
                 if re.search(pattern, report, re.IGNORECASE):
-                    LOGGER.info("Importação %s: %s (status %s).", video_id, code, process.returncode)
+                    log_import_error(video_id, code, process.returncode, stderr, stdout)
                     raise HTTPException(status, message)
-            LOGGER.info("Importação %s: falha sem diagnóstico (status %s).", video_id, process.returncode)
+            log_import_error(video_id, "falha-sem-classificar", process.returncode, stderr, stdout)
             raise HTTPException(
-                422, "O servidor não conseguiu baixar esse vídeo. Use um vídeo disponível de "
-                "30 segundos a 2 horas, com até 250 MB, ou envie o MP4 pelo seletor.",
+                422, "O importador falhou ao obter o vídeo. Para diagnosticar, consulte a linha "
+                "“Importação” nos logs do Render. Você também pode enviar o MP4 pelo seletor.",
             )
 
     if output.stat().st_size > MAX_BYTES:
