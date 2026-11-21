@@ -12,28 +12,34 @@ const cancel = document.querySelector("#cancelar-local");
 const progress = document.querySelector("#progresso-local");
 const localStatus = document.querySelector("#estado-local");
 const linkField = document.querySelector("#link");
-const generateLink = document.querySelector("#gerar-link");
+const importButton = document.querySelector("#importar-link");
 const linkFeedback = document.querySelector("#retorno-link");
+const loadedStatus = document.querySelector("#video-carregado");
 const youtubeActions = document.querySelector("#acoes-youtube");
 const sourceModes = [...document.querySelectorAll('input[name="origem"]')];
 const cutCounts = [...document.querySelectorAll('input[name="quantidade"]')];
 const cutLengths = [...document.querySelectorAll('input[name="duracao-corte"]')];
 const library = mountLibrary();
-const youtubeImportPhase = "importar o vídeo do YouTube";
 let activeJob;
-let localFile;
+let loadedFile;
 let preview;
 let backend;
 let youtubeImport;
-input.addEventListener("change", () => {
+let linkBlocked = false;
+
+function loadVideo(file) {
+  video.pause();
   if (preview) URL.revokeObjectURL(preview);
-  preview = undefined;
-  localFile = undefined;
-  progress.hidden = true;
-  localStatus.textContent = "";
-  generate.disabled = true;
-  video.hidden = true;
-  video.removeAttribute("src");
+  loadedFile = file;
+  preview = URL.createObjectURL(file);
+  video.src = preview;
+  video.hidden = false;
+  loadedStatus.textContent = "Vídeo carregado · " + file.name;
+  loadedStatus.hidden = false;
+  generate.disabled = Boolean(activeJob);
+}
+
+input.addEventListener("change", () => {
   const file = input.files[0];
   if (!file) {
     status.textContent = "MP4 ou MOV de 30 segundos a 2 horas, com até 2 GB.";
@@ -47,15 +53,14 @@ input.addEventListener("change", () => {
     status.textContent = "Escolha um arquivo com conteúdo e até 2 GB.";
     return;
   }
-  localFile = file;
-  preview = URL.createObjectURL(file);
-  video.src = preview;
-  video.hidden = false;
+  progress.hidden = true;
+  localStatus.textContent = "";
   status.textContent = file.name;
-  generate.disabled = false;
+  loadVideo(file);
 });
 video.addEventListener("error", () => {
-  status.textContent = "A prévia pode falhar com alguns codecs MOV. Você ainda pode tentar gerar o corte.";
+  if (loadedFile) loadedStatus.textContent = "Vídeo carregado · " + loadedFile.name
+    + ". A prévia está indisponível para este formato. Você ainda pode gerar os cortes.";
   video.hidden = true;
 });
 fetch("config.json").then(response => response.ok ? response.json() : null).then(config => {
@@ -112,10 +117,10 @@ fetch("config.json").then(response => response.ok ? response.json() : null).then
 const filePanel = document.querySelector("#painel-arquivo");
 const linkPanel = document.querySelector("#painel-link");
 function showYouTubeNotice(youtube) {
-  const needsFile = youtube && !youtubeImport && !backend;
-  youtubeActions.hidden = !needsFile;
-  generateLink.disabled = Boolean(activeJob) || needsFile;
-  if (needsFile) {
+  linkBlocked = youtube && !youtubeImport && !backend;
+  youtubeActions.hidden = !linkBlocked;
+  importButton.disabled = Boolean(activeJob) || linkBlocked;
+  if (linkBlocked) {
     linkFeedback.textContent = "A importação do YouTube ainda está indisponível no estúdio. Se o vídeo for seu, salve uma cópia e selecione o arquivo aqui.";
   }
 }
@@ -143,17 +148,14 @@ document.querySelector("#enviar-youtube").addEventListener("click", () => {
 sourceModes.forEach(item => {
   item.addEventListener("change", () => {
     const useLink = item.value === "link";
-    generate.hidden = useLink;
-    generateLink.hidden = !useLink;
     filePanel.hidden = useLink;
     linkPanel.hidden = !useLink;
-    if (useLink) video.pause();
   });
 });
 for (const choice of cutCounts) {
   choice.addEventListener("change", () => {
     const count = Number(choice.value);
-    generate.textContent = generateLink.textContent = "Gerar " + count + " " + (count === 1 ? "corte" : "cortes");
+    generate.textContent = "Gerar " + count + " " + (count === 1 ? "corte" : "cortes");
   });
 }
 linkPanel.addEventListener("submit", event => {
@@ -166,16 +168,16 @@ linkPanel.addEventListener("submit", event => {
     linkFeedback.textContent = error.message;
     return;
   }
+  showYouTubeNotice(source.kind === "youtube");
   if (source.kind === "youtube") {
     linkField.value = source.url;
-    showYouTubeNotice(true);
     if (!youtubeImport) {
       if (backend) linkFeedback.textContent = "Para este link, abra o gerador no servidor e cole o endereço lá.";
       return;
     }
   }
   linkFeedback.textContent = "";
-  void runJob(source);
+  void importVideo(source);
 });
 
 if (window.matchMedia("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)").matches) {
@@ -200,21 +202,17 @@ function updateProgress(amount, message) {
 cancel.addEventListener("click", () => {
   if (!activeJob || activeJob.signal.aborted) return;
   cancel.disabled = true;
-  localStatus.textContent = "Cancelando a geração…";
+  localStatus.textContent = "Cancelando…";
   activeJob.abort();
 });
 
 generate.addEventListener("click", () => {
-  if (localFile) void runJob({ kind: "file", file: localFile });
+  if (loadedFile && !activeJob) void runJob(loadedFile);
 });
 
-async function runJob(source) {
-  if (activeJob) return;
-  const requested = Number(cutCounts.find(choice => choice.checked).value);
-  const seconds = Number(cutLengths.find(choice => choice.checked).value);
+function startJob(message) {
   activeJob = new AbortController();
-  const { signal } = activeJob;
-  input.disabled = language.disabled = generate.disabled = linkField.disabled = generateLink.disabled = true;
+  input.disabled = language.disabled = generate.disabled = linkField.disabled = importButton.disabled = true;
   for (const choice of sourceModes) choice.disabled = true;
   for (const choice of cutCounts) choice.disabled = true;
   for (const choice of cutLengths) choice.disabled = true;
@@ -223,7 +221,52 @@ async function runJob(source) {
   video.pause();
   progress.hidden = false;
   progress.value = 0;
-  updateProgress(0, "Preparando o editor de vídeo…");
+  updateProgress(0, message);
+  return activeJob.signal;
+}
+
+function finishJob() {
+  activeJob = undefined;
+  cancel.hidden = true;
+  input.disabled = language.disabled = linkField.disabled = false;
+  importButton.disabled = linkBlocked;
+  generate.disabled = !loadedFile;
+  for (const choice of sourceModes) choice.disabled = false;
+  for (const choice of cutCounts) choice.disabled = false;
+  for (const choice of cutLengths) choice.disabled = false;
+}
+
+async function importVideo(source) {
+  const youtube = source.kind === "youtube";
+  const message = youtube ? "Importando o vídeo do YouTube…" : "Baixando o vídeo do link…";
+  const signal = startJob(message);
+  progress.removeAttribute("value");
+  const downloading = fraction => {
+    if (fraction !== null && !signal.aborted) updateProgress(fraction * 100, message);
+  };
+  try {
+    const file = youtube
+      ? await fetchYoutubeVideo(youtubeImport, source, downloading, { signal })
+      : await fetchLinkedVideo(source.url, downloading, { signal });
+    signal.throwIfAborted();
+    loadVideo(file);
+    localStatus.textContent = "Escolha a duração e gere os cortes.";
+  } catch (error) {
+    localStatus.textContent = signal.aborted ? "Importação cancelada." : "";
+    if (!signal.aborted) {
+      linkFeedback.textContent = "Não foi possível importar o vídeo. " + error.message;
+      if (youtube) youtubeActions.hidden = false;
+    }
+  } finally {
+    progress.hidden = true;
+    finishJob();
+  }
+}
+
+async function runJob(file) {
+  const requested = Number(cutCounts.find(choice => choice.checked).value);
+  const seconds = Number(cutLengths.find(choice => choice.checked).value);
+  const signal = startJob("Preparando o editor de vídeo…");
 
   let videoSession;
   let speechSession;
@@ -234,24 +277,12 @@ async function runJob(source) {
     if (!signal.aborted) updateProgress(amount, message);
   };
   try {
-    let file = source.file;
-    if (source.kind !== "file") {
-      const youtube = source.kind === "youtube";
-      phase = youtube ? youtubeImportPhase : "baixar o vídeo do link";
-      const message = youtube ? "Importando o vídeo do YouTube…" : "Baixando o vídeo do link…";
-      report(0, message);
-      const downloading = fraction => report((fraction ?? 0) * 8, message);
-      file = youtube
-        ? await fetchYoutubeVideo(youtubeImport, source, downloading, { signal })
-        : await fetchLinkedVideo(source.url, downloading, { signal });
-    }
-    phase = "preparar o vídeo";
     const [{ createVideoSession }, { createTranscriptionSession }] = await Promise.all([
       import("./video-local.js"), import("./speech-local.js"),
     ]);
     signal.throwIfAborted();
     videoSession = await createVideoSession(file, (fraction, message) => {
-      report(8 + fraction * 8, message || "Lendo o vídeo…");
+      report(fraction * 16, message || "Lendo o vídeo…");
     }, { signal });
     if (videoSession.duration < seconds) {
       throw new Error("Escolha um vídeo de pelo menos " + seconds + " segundos ou reduza a duração do corte.");
@@ -342,14 +373,7 @@ async function runJob(source) {
       localStatus.textContent = "Geração cancelada.";
     } else {
       const detail = error instanceof Error && error.message ? " " + error.message : "";
-      const message = "Não foi possível " + phase + "." + detail;
-      if (phase === youtubeImportPhase) {
-        linkFeedback.textContent = message;
-        youtubeActions.hidden = false;
-        localStatus.textContent = "";
-      } else {
-        localStatus.textContent = message;
-      }
+      localStatus.textContent = "Não foi possível " + phase + "." + detail;
     }
     if (completed) {
       const ready = batchResult(completed, saved);
@@ -363,14 +387,7 @@ async function runJob(source) {
       try {
         videoSession?.close();
       } finally {
-        activeJob = undefined;
-        cancel.hidden = true;
-        input.disabled = language.disabled = linkField.disabled = false;
-        generateLink.disabled = !youtubeActions.hidden && !youtubeImport;
-        generate.disabled = !localFile;
-        for (const choice of sourceModes) choice.disabled = false;
-        for (const choice of cutCounts) choice.disabled = false;
-        for (const choice of cutLengths) choice.disabled = false;
+        finishJob();
       }
     }
   }

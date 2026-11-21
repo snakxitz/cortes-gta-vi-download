@@ -62,12 +62,14 @@
 <label for="link">Link direto de MP4 ou MOV</label>
 <input id="link" class="campo" type="url" placeholder="https://…/video.mp4" required aria-describedby="limite-link retorno-link">
 <p id="limite-link">Até 250 MB. O endereço precisa abrir o arquivo de vídeo e permitir acesso por este site.</p>
+<button class="button secondary" id="importar-link" type="submit">Importar vídeo</button>
 <p id="retorno-link" role="status"></p>
 <div class="acoes-locais acoes-youtube" id="acoes-youtube" hidden>
 <button class="button secondary" id="enviar-youtube" type="button">Selecionar MP4 ou MOV</button>
 <a href="https://support.google.com/youtube/answer/56100?hl=pt-BR" target="_blank" rel="noopener noreferrer">Como baixar meu vídeo do YouTube</a>
 </div>
 </form>
+<p id="video-carregado" role="status" hidden></p>
 <label for="idioma-local">Idioma da narração</label>
 <select id="idioma-local"><option value="pt">Português</option><option value="en">Inglês</option></select>
 <fieldset class="quantidade">
@@ -87,13 +89,12 @@
 </fieldset>
 <div class="acoes-locais">
 <button class="button" id="gerar-local" type="button" disabled>Gerar 1 corte</button>
-<button class="button" id="gerar-link" type="submit" form="painel-link" hidden>Gerar 1 corte</button>
 <button class="button secondary" id="cancelar-local" type="button" hidden>Cancelar</button>
 </div>
 </div>
-<video id="video" controls playsinline preload="metadata" hidden></video>
+<video id="video" controls playsinline preload="metadata" aria-label="Prévia do vídeo original" hidden></video>
 </div>
-<progress id="progresso-local" aria-label="Progresso da geração" max="100" value="0" hidden></progress>
+<progress id="progresso-local" aria-label="Progresso do estúdio" max="100" value="0" hidden></progress>
 <p id="estado-local" role="status" aria-live="polite"></p>
 </div>
 </section>

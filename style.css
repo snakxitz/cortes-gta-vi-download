@@ -144,7 +144,7 @@ body { background: #110e18; }
   cursor: pointer;
   text-decoration: underline;
 }
-#estado-publicacao, #retorno-link { overflow-wrap: anywhere; }
+#estado-publicacao, #retorno-link, #video-carregado { overflow-wrap: anywhere; }
 @media (max-width: 690px) {
   .entrada-grid, .detalhes-grid { grid-template-columns: minmax(0, 1fr); }
 }
