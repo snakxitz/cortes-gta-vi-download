@@ -4,7 +4,7 @@ Use o estúdio para gerar 1, 3 ou 5 cortes verticais de 65 segundos de um vídeo
 
 ## Como usar
 
-1. Abra o endereço do estúdio publicado no GitHub Pages deste repositório.
+1. Abra o [Cortes GTA VI no navegador](https://snakxitz.github.io/cortes-gta-vi-download/#estudio).
 2. Selecione um MP4 ou MOV com narração sobre GTA VI. Escolha o idioma e a quantidade.
 3. Mantenha a aba aberta durante a geração. Use a biblioteca para assistir, editar e baixar.
 
