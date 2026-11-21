@@ -78,7 +78,8 @@ body { background: #110e18; }
   align-items: start;
   gap: 22px;
 }
-.entrada-grid > video { border-radius: 10px; background: #100d18; }
+.video-origem video { display: block; border-radius: 10px; background: #100d18; }
+.video-origem .button { margin-top: 10px; }
 .campo {
   width: 100%;
   padding: 10px 12px;

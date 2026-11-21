@@ -4,6 +4,7 @@ import { generatePublication } from "./publication-local.js";
 import { mountLibrary } from "./studio-library.js";
 const input = document.querySelector("#entrada");
 const video = document.querySelector("#video");
+const downloadOriginal = document.querySelector("#baixar-original");
 const maxBytes = 2 * 1024 * 1024 * 1024;
 const status = document.querySelector("#arquivo");
 const generate = document.querySelector("#gerar-local");
@@ -34,6 +35,9 @@ function loadVideo(file) {
   preview = URL.createObjectURL(file);
   video.src = preview;
   video.hidden = false;
+  downloadOriginal.href = preview;
+  downloadOriginal.download = file.name;
+  downloadOriginal.hidden = false;
   loadedStatus.textContent = "Vídeo carregado · " + file.name;
   loadedStatus.hidden = false;
   generate.disabled = Boolean(activeJob);
@@ -120,6 +124,7 @@ function showYouTubeNotice(youtube) {
   linkBlocked = youtube && !youtubeImport && !backend;
   youtubeActions.hidden = !linkBlocked;
   importButton.disabled = Boolean(activeJob) || linkBlocked;
+  importButton.textContent = youtube && youtubeImport ? "Baixar para o estúdio" : "Importar vídeo";
   if (linkBlocked) {
     linkFeedback.textContent = "A importação do YouTube ainda está indisponível no estúdio. Se o vídeo for seu, salve uma cópia e selecione o arquivo aqui.";
   }
