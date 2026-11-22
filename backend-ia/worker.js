@@ -59,7 +59,7 @@ function instructions(duracao, estilo) {
     'Responda APENAS JSON com propriedades: tema (string curta e específica), titulo (string com gancho), roteiro (string narrável), observacoes (array de evidências que sugerem o tema), alertas (array de pontos não confirmados), revisar (true).',
     'No campo roteiro, escreva apenas o texto da voz, em frases curtas, sem colchetes, instruções técnicas, texto para editor, timestamps, markdown ou nomes de etapas.',
     'Nas observacoes, descreva brevemente a base do tema usando quadros/transcrição, mas NÃO transforme essas observações em narração.'
-  ].join('\\n');
+  ].join('\n');
 }
 
 export default {
