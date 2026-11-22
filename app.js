@@ -193,7 +193,7 @@ async function runJob(file) {
       signal.throwIfAborted();
       const step = 65 + order * span;
       const label = (order + 1) + " de " + clips.length;
-      const publication = generatePublication({ ...clip, filename: file.name });
+      const publication = generatePublication(clip);
       const cueTime = publication.cueTime ?? (clip.hook ? clip.hook.start - clip.start : undefined);
       phase = "exportar o corte " + label;
       const exporting = "Exportando corte " + label + " em 9:16…";

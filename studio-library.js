@@ -1,5 +1,6 @@
 import { formatTime } from "./clip-local.js";
 import { generateCover } from "./cover-local.js";
+import { replacementForFilenameHook } from "./publication-local.js";
 import { deleteClip, listClips, saveClip } from "./library-local.js";
 
 export function mountLibrary() {
@@ -89,6 +90,11 @@ export function mountLibrary() {
       + " do original · " + Math.round(entry.end - entry.start) + " s · 9:16";
     for (const [key, input] of Object.entries(fields)) {
       input.value = key === "tags" ? entry.tags.join(", ") : entry[key];
+    }
+    const replacementHook = replacementForFilenameHook(entry);
+    if (replacementHook) {
+      fields.hook.value = replacementHook;
+      feedback.textContent = "O gancho anterior veio do nome do arquivo. Edite a sugestão ou clique em Atualizar capa.";
     }
     showCover(entry);
     renderList();

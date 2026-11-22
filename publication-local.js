@@ -1,4 +1,5 @@
 const BASE_TAGS = ["GTA VI", "GTA 6", "Grand Theft Auto VI", "Cortes GTA VI", "Shorts GTA VI"];
+const DEFAULT_HOOK = "Qual detalhe de GTA VI merece replay?";
 const TOPICS = [
   {
     pattern: /\b(?:estrelas? de procurado|nivel de procurado|wanted level|wanted stars)\b/,
@@ -139,11 +140,14 @@ function fit(text, limit) {
   return (boundary > limit / 2 ? prefix.slice(0, boundary) : prefix).trimEnd() + "…";
 }
 
-function filenameTopic(filename) {
+export function replacementForFilenameHook({ filename, hook }) {
+  // Recognize the exact filename fallback used by older saved covers.
   const name = clean(String(filename ?? "").split(/[\\/]/).at(-1)
     ?.replace(/\.[a-z0-9]{2,5}$/i, "")
     .replace(/[_–—-]+/g, " "));
-  return GAME_NAME.test(normalize(name)) && !/^gta\s*(?:6|vi|seis)$/i.test(name) ? name : "";
+  if (GAME_NAME.test(normalize(name)) && !/^gta\s*(?:6|vi|seis)$/i.test(name) && hook === fit(name, 80)) {
+    return DEFAULT_HOOK;
+  }
 }
 
 function candidateCues(segments, fallbackText, start, end) {
@@ -156,15 +160,13 @@ function candidateCues(segments, fallbackText, start, end) {
   })));
 }
 
-function getTopics(cues, originalHook, filename) {
+function getTopics(cues, originalHook) {
   return TOPICS.flatMap((topic, index) => {
     const hits = cues.filter(cue => topic.pattern.test(cue.folded)).length;
     const fromHook = topic.pattern.test(originalHook);
-    const fromFilename = topic.pattern.test(filename);
-    if (!hits && !fromHook && !fromFilename) return [];
-    const score = (hits || fromHook ? 15 : 0)
-      + Math.min(hits, 4) * 2 + Number(fromHook) * 2 + topic.weight;
-    return [{ ...topic, inSpeech: Boolean(hits || fromHook), score, index }];
+    if (!hits && !fromHook) return [];
+    const score = Math.min(hits, 4) * 2 + Number(fromHook) * 2 + topic.weight;
+    return [{ ...topic, score, index }];
   }).sort((a, b) => b.score - a.score || a.index - b.index);
 }
 
@@ -253,13 +255,12 @@ function composeTitle(hook) {
 }
 
 export function generatePublication({
-  segments = [], text = "", hook: originalHook, filename = "", start = 0, end = Infinity,
+  segments = [], text = "", hook: originalHook, start = 0, end = Infinity,
 } = {}) {
   const cues = candidateCues(segments, text, start, end);
   const editorial = cues.filter(cue => !PROMO.test(cue.folded));
   const foldedHook = normalize(originalHook?.text);
-  const sourceName = filenameTopic(filename);
-  const topics = getTopics(editorial, foldedHook, normalize(sourceName));
+  const topics = getTopics(editorial, foldedHook);
   const topic = topics[0];
   const around = normalize(editorial.map(cue => cue.text).join(" "));
   const comparing = COMPARISON.test(around) && GTA_NAME.test(around) && /\bgta\s*(?:5|v)\b/.test(around);
@@ -271,20 +272,19 @@ export function generatePublication({
   const matchingMoment = !question || moment?.cue === question ? moment : undefined;
   let hook = question?.text ?? matchingMoment?.hook
     ?? (anchor && quote ? "“" + fit(quote.text, 76) + "”" : undefined)
-    ?? (topic?.inSpeech ? topic.hook : undefined) ?? (quote ? "“" + fit(quote.text, 76) + "”" : topic?.hook)
-    ?? (fit(sourceName, 80) || "Qual parte da fala sobre GTA VI merece replay?");
+    ?? topic?.hook ?? (quote ? "“" + fit(quote.text, 76) + "”" : DEFAULT_HOOK);
   let cta = matchingMoment?.cta ?? anchoredCta
     ?? (anchor ? "Comenta sobre " + anchor : topic?.cta ?? "Qual detalhe de GTA VI você ouviu?");
   const cue = question ?? matchingMoment?.cue ?? quote;
 
   if (!matchingMoment && !anchor && comparing) {
     hook = question?.text ?? "GTA V ou GTA VI nessa situação?";
-    cta = topic?.inSpeech ? "Compara " + topic.subject + " nos dois jogos" : "Qual jogo você prefere nessa situação?";
+    cta = topic ? "Compara " + topic.subject + " nos dois jogos" : "Qual jogo você prefere nessa situação?";
   } else if (!matchingMoment && !anchor && THEORY.test(around) && !question) {
-    hook = topic?.inSpeech && topic.subject !== "as teorias"
+    hook = topic && topic.subject !== "as teorias"
       ? "Qual é a sua teoria sobre " + topic.subject + "?"
       : "Qual é a sua teoria?";
-    cta = topic?.inSpeech && topic.subject !== "as teorias"
+    cta = topic && topic.subject !== "as teorias"
       ? "Qual sua teoria sobre " + topic.subject + "?"
       : "Defende sua teoria sobre GTA VI";
   } else if (!matchingMoment && anchor && !anchoredCta && REACTION.test(around)) {
@@ -299,11 +299,9 @@ export function generatePublication({
   } else if (anchor) {
     context = "Neste trecho de GTA VI, a narração chama atenção para " + anchor + ".";
   } else if (comparing) {
-    context = "A narração compara GTA V e GTA VI" + (topic?.inSpeech ? " ao falar sobre " + topic.subject : "") + ".";
-  } else if (topic?.inSpeech) {
+    context = "A narração compara GTA V e GTA VI" + (topic ? " ao falar sobre " + topic.subject : "") + ".";
+  } else if (topic) {
     context = "Neste trecho sobre GTA VI, a narração comenta " + topic.subject + ".";
-  } else if (sourceName) {
-    context = "Trecho do vídeo “" + fit(sourceName, 100) + "”.";
   } else {
     context = "Um trecho com comentários sobre GTA VI.";
   }
