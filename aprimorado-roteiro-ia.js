@@ -1,6 +1,6 @@
 // Modo Aprimorado: captura quadros somente do trecho selecionado e solicita um roteiro original.
 // Chaves da IA nunca devem ser usadas aqui: somente o Worker privado conhece OPENAI_API_KEY.
-const FRAME_POINTS = [0.06, 0.23, 0.40, 0.57, 0.74, 0.91];
+const FRAME_POINTS = [0.10, 0.36, 0.62, 0.88];
 const MAX_IMAGE_WIDTH = 520;
 
 function waitFor(video, event, ready, signal, timeout = 12000) {
