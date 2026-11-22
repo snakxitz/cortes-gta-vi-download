@@ -18,3 +18,17 @@ body.editor-avancado{background:radial-gradient(ellipse at 90% 2%,#512545 0%,tra
 .player-controls{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:15px}.player-controls span{font-size:.79rem;color:var(--av-muted)}#scrubber{width:100%;margin:12px 0 0;accent-color:var(--av-pink)}#progress{width:100%;margin-top:15px;accent-color:var(--av-aqua)}.status{font-size:.88rem;color:#d5ffdc;word-break:break-word}#result{border-top:1px solid #66516c;margin-top:18px;padding-top:17px}#result h3{margin:0 0 10px}#result video{max-height:320px;border-radius:10px;background:#100f15;width:auto;max-width:100%;display:block;margin-bottom:12px}.av-footer{padding:23px 0 35px;margin-top:20px;border-top:1px solid #55465f;color:#bbacc2;font-size:.84rem}.av-footer a{color:var(--av-aqua)}
 @media(max-width:850px){.av-layout{grid-template-columns:1fr}.av-right{position:static;grid-row:1}.preview-panel{max-width:700px}.phone{max-width:200px;max-height:355px}.preview-caption{font-size:1.08rem}}
 @media(max-width:530px){.av-header nav a:nth-child(2){display:none}.two-cols{grid-template-columns:1fr}.scene-grid{grid-template-columns:100px 1fr}.scene-grid label:last-child{grid-column:1/-1}.av-panel{padding:15px}.av-title{padding-top:25px}}
+/* v1.1 — corte antes do roteiro */
+.cut-list{display:grid;gap:11px;margin-top:14px}
+.cut-card{border:1px solid #655371;background:linear-gradient(130deg,#1b1628,#221b31);border-radius:12px;padding:14px}
+.cut-card.chosen{border-color:var(--av-aqua);box-shadow:inset 0 0 0 1px #88e9d650}
+.cut-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.cut-head strong{font-size:.95rem}
+.cut-head small{color:var(--av-aqua);font-size:.76rem}
+.cut-excerpt{font-size:.83rem;color:#e2d8e9;line-height:1.6;margin:11px 0 0;overflow-wrap:anywhere}
+.cut-reference{border:1px solid #6c5a7d;border-left:4px solid var(--av-aqua);background:#171525;padding:13px;border-radius:9px;margin:10px 0}
+.cut-reference strong{font-size:.9rem}
+.cut-reference p{font-size:.85rem;color:#e0d3e9;line-height:1.55;white-space:normal;overflow-wrap:anywhere}
+.cut-reference .hint{color:#cab8d3}
+#cut-status{min-height:1.6em;overflow-wrap:anywhere}
+.av-panel input:disabled,.av-panel select:disabled,.av-panel textarea:disabled{opacity:.55}

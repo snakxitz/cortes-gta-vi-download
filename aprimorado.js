@@ -1,4 +1,7 @@
 import { renderEnhanced, transcribeNarration } from './aprimorado-video.js';
+import { suggestSpeechCuts, proposeVisualWindows, chooseVisualWindows, draftNarration, timeLabel } from './aprimorado-cortes.js';
+import { sampleVisualActivity } from './cover-local.js';
+import { analyzeVideoSpeech } from './aprimorado-analisar.js';
 
 const $ = id => document.getElementById(id);
 const fields = {
@@ -22,6 +25,11 @@ let clock = 0;
 let startedAt = 0;
 let renderController;
 let renderBusy = false;
+let cutCandidates = [];
+let selectedCut;
+let analysisController;
+const candidateList = $('cut-list');
+const candidateStatus = $('cut-status');
 
 function notify(message, bad = false) {
   $('status').textContent = message;
@@ -62,10 +70,15 @@ function updateReady() {
   $('render').disabled = !videoFile || scenes.length === 0 || renderBusy;
   buttonPlay.disabled = !videoFile || scenes.length === 0 || renderBusy;
   $('scrubber').disabled = !scenes.length || renderBusy;
+  $('analyze-cuts').disabled = !videoFile || renderBusy;
+  $('copy-script').disabled = !fields.script.value.trim() || renderBusy;
+  $('copy-brief').disabled = !selectedCut || renderBusy;
 }
 fields.video.addEventListener('change', async () => {
   const f = fields.video.files?.[0];
-  resetVideoPreview(); videoFile = undefined; videoDuration = 0; scenes = []; drawSceneRows(); updateReady();
+  resetVideoPreview(); videoFile = undefined; videoDuration = 0; scenes = [];
+  cutCandidates = []; selectedCut = undefined; fields.script.value = '';
+  $('cut-reference').hidden = true; showCandidateCards(); drawSceneRows(); updateReady();
   if (!f) return;
   if (!/\.(mp4|mov)$/i.test(f.name) || f.size === 0 || f.size > maxVideoBytes) {
     notify('Escolha MP4/MOV com conteúdo e até 2 GB.', true); return;
@@ -76,6 +89,7 @@ fields.video.addEventListener('change', async () => {
     videoPlayer.src = videoUrl;
     $('preview-placeholder').hidden = true;
     fields.start.max = Math.max(0, Math.floor(videoDuration - 1));
+    candidateStatus.textContent = 'Vídeo pronto: selecione duração e clique em “Analisar vídeo e sugerir cortes”.';
     notify('Vídeo carregado: ' + f.name + ' (' + formatTime(duration) + ').');
   } catch (e) { notify(e.message, true); }
   updateReady();
@@ -85,7 +99,7 @@ fields.voice.addEventListener('change', async () => {
   pause();
   if (voiceUrl) URL.revokeObjectURL(voiceUrl);
   voiceUrl = undefined; voiceDuration = 0; voiceFile = undefined;
-  if (!f) { voicePlayer.removeAttribute('src'); notify('Narração removida.'); updateReady(); return; }
+  if (!f) { voicePlayer.removeAttribute('src'); scenes = [];drawSceneRows();notify('Narração removida. Monte novamente as cenas.');updateReady(); return; }
   if (!/\.(mp3|wav|m4a)$/i.test(f.name) || f.size > 100 * 1024 ** 2) {
     notify('Use MP3, WAV ou M4A de até 100 MB.', true); updateReady(); return;
   }
@@ -94,7 +108,8 @@ fields.voice.addEventListener('change', async () => {
     if (duration > 120) throw new Error('A v1 aceita narrações de até 2 minutos.');
     voiceFile = f; voiceDuration = duration; voiceUrl = URL.createObjectURL(f);
     voicePlayer.src = voiceUrl;
-    notify('Narração carregada (' + formatTime(duration) + '). Clique em “Montar cenas” para ajustar o vídeo ao áudio.');
+    scenes = []; drawSceneRows();
+    notify('Narração carregada (' + formatTime(duration) + '). Revise o roteiro e clique em “Montar cenas para prévia”.');
   } catch (e) { notify(e.message, true); }
   updateReady();
 });
@@ -108,6 +123,131 @@ fields.music.addEventListener('change', () => {
 for (const [id, output] of [['original-volume','original-label'],['music-volume','music-label']]) {
   $(id).addEventListener('input', () => $(output).textContent = $(id).value + '%');
 }
+
+
+function setCandidateStatus(message, isError = false) {
+  candidateStatus.textContent = message;
+  candidateStatus.style.color = isError ? '#ffb1b1' : '';
+}
+function showCandidateCards() {
+  candidateList.replaceChildren();
+  if (!cutCandidates.length) {
+    const empty = document.createElement('p'); empty.className='empty';
+    empty.textContent='Os trechos sugeridos aparecerão aqui.'; candidateList.append(empty);return;
+  }
+  for (let i = 0; i < cutCandidates.length; i++) {
+    const c = cutCandidates[i];
+    const card = document.createElement('article');card.className='cut-card';
+    if(c===selectedCut) card.classList.add('chosen');
+    const head=document.createElement('div');head.className='cut-head';
+    const name=document.createElement('strong');name.textContent=`Opção ${i+1} · ${timeLabel(c.start)}–${timeLabel(c.end)}`;
+    const kind=document.createElement('small');kind.textContent=c.type==='fala'?'Baseada nas falas':'Baseada em movimento';
+    head.append(name,kind);
+    const excerpt=document.createElement('p');excerpt.className='cut-excerpt';
+    excerpt.textContent=c.excerpt ? c.excerpt.slice(0,270)+(c.excerpt.length>270?'…':'') : 'Sem transcrição: assista ao vídeo para identificar o que aparece.';
+    const actions=document.createElement('div');actions.className='inline-actions';
+    const watch=document.createElement('button');watch.type='button';watch.className='av-button ghost';watch.textContent='▶ Ver trecho';
+    watch.addEventListener('click',()=>watchCandidate(c));
+    const use=document.createElement('button');use.type='button';use.className='av-button';use.textContent=c===selectedCut?'Selecionado':'Usar este corte';
+    use.addEventListener('click',()=>selectCandidate(c));
+    actions.append(watch,use);card.append(head,excerpt,actions);candidateList.append(card);
+  }
+}
+function watchCandidate(c) {
+  pause();
+  videoPlayer.controls=true;
+  $('preview-layer').hidden=true;
+  try { videoPlayer.currentTime=c.start; videoPlayer.muted=false; videoPlayer.volume=.85;
+    videoPlayer.play().catch(()=>notify('Clique no botão de play na prévia para assistir ao trecho.'));
+  } catch(e) { notify('Não foi possível abrir a prévia: '+e.message,true); }
+  watchCandidate.current=c;
+  setCandidateStatus(`Prévia: ${timeLabel(c.start)} até ${timeLabel(c.end)}. Clique em “Usar este corte” quando escolher.`);
+}
+videoPlayer.addEventListener('timeupdate',()=>{
+  const c=watchCandidate.current;
+  if(c && videoPlayer.currentTime>=c.end-.05){ videoPlayer.pause();watchCandidate.current=undefined; }
+});
+function selectCandidate(c) {
+  watchCandidate.current=undefined;
+  pause();selectedCut=c;
+  fields.start.value=c.start.toFixed(2);
+  fields.duration.value=String(Math.round(c.end-c.start));
+  fields.script.value=draftNarration(fields.preset.value,c);
+  $('cut-reference').hidden=false;
+  $('cut-reference-time').textContent=`Trecho ${timeLabel(c.start)} a ${timeLabel(c.end)} · ${c.type==='fala'?'transcrição disponível':'análise visual, sem transcrição'}`;
+  $('cut-transcript').textContent=c.excerpt || 'O vídeo não foi transcrito. Assista ao trecho e descreva apenas o que você verificou nas imagens.';
+  scenes=[];drawSceneRows();updateReady();showCandidateCards();
+  videoPlayer.controls=true;$('preview-layer').hidden=true;
+  videoPlayer.currentTime=c.start;
+  notify('Trecho escolhido. Confira a prévia, complete o roteiro abaixo e gere o áudio no ElevenLabs.');
+  $('script-title').scrollIntoView({behavior:'smooth',block:'start'});
+}
+$('abort-analysis').addEventListener('click',()=>{analysisController?.abort();});
+$('analyze-cuts').addEventListener('click',async()=>{
+  if(!videoFile || renderBusy)return;
+  pause();watchCandidate.current=undefined; videoPlayer.pause();
+  const from=Number(fields.start.value),seconds=Number(fields.duration.value),count=Number($('cut-count').value);
+  if(!Number.isFinite(from)||from<0||from>=videoDuration){setCandidateStatus('Escolha um início de busca válido.',true);return;}
+  if(!Number.isFinite(seconds)||seconds>videoDuration-from){setCandidateStatus('Não há vídeo suficiente para essa duração. Escolha menos segundos ou um início anterior.',true);return;}
+  const method=$('cut-method').value;
+  const until=Math.min(videoDuration,from+(method==='fala'?240:360));
+  analysisController=new AbortController();
+  setBusy(true);$('abort-analysis').hidden=false;
+  setCandidateStatus(method==='fala'?'Carregando Whisper. Isso pode demorar alguns minutos…':'Procurando mudanças entre as cenas…');
+  try {
+    if(method==='fala'){
+      const transcript=await analyzeVideoSpeech(videoFile,from,until,(p,msg)=>setCandidateStatus(`${Math.round(p*100)}% · ${msg}`),analysisController.signal,$('video-language').value);
+      cutCandidates=suggestSpeechCuts(transcript,from,until,seconds,count);
+      if(!cutCandidates.length)throw new Error('Não foi possível identificar falas suficientes neste intervalo. Escolha análise visual ou mude o início da busca.');
+    } else {
+      const groups=proposeVisualWindows(from,until,seconds,count);
+      const samples=[...new Set(groups.flatMap(g=>g.map(x=>x.start+(x.end-x.start)/3)))];
+      const activity=await sampleVisualActivity(videoPlayer,samples,analysisController.signal);
+      analysisController.signal.throwIfAborted();
+      cutCandidates=chooseVisualWindows(groups,activity);
+    }
+    selectedCut=undefined; showCandidateCards();
+    setCandidateStatus(`${cutCandidates.length} trechos sugeridos em ${timeLabel(from)}–${timeLabel(until)}. Assista às opções antes de escolher. A análise visual mede movimento, não identifica o jogo.`);
+  } catch(error){
+    setCandidateStatus(analysisController.signal.aborted?'Análise cancelada.':`Não foi possível sugerir cortes: ${error.message}`,true);
+  }finally{
+    analysisController=undefined;
+    $('abort-analysis').hidden=true;
+    setBusy(false);
+  }
+});
+$('copy-brief').addEventListener('click',async()=>{
+  if (!selectedCut) return;
+  const style = fields.preset.options[fields.preset.selectedIndex].textContent;
+  const text = [
+    'Crie um roteiro ORIGINAL para narração de YouTube Shorts em português do Brasil.',
+    'Tipo: '+style+'. Duração-alvo: '+Math.round(selectedCut.end-selectedCut.start)+' segundos.',
+    'Fonte: vídeo de GTA V/GTA VI, trecho de '+timeLabel(selectedCut.start)+' a '+timeLabel(selectedCut.end)+'.',
+    'Faça um gancho nos 3 primeiros segundos, desenvolvimento claro e pergunta/CTA no final.',
+    'NÃO invente diferenças entre os jogos, fatos, nomes nem imagens. Identifique o que precisa ser confirmado visualmente e pergunte se estiver faltando informação.',
+    'O roteiro deve ter análise e comentários originais, em frases curtas, uma frase por linha, já pronto para revisão antes do ElevenLabs.',
+    'Transcrição de referência (pode estar incompleta, NÃO copie literalmente): '+(selectedCut.excerpt || '[Este trecho não foi transcrito. Peça uma descrição das imagens antes de produzir roteiro factual.]'),
+    'Rascunho editorial atual: '+fields.script.value.trim(),
+  ].join('\n\n');
+  try {await navigator.clipboard.writeText(text);notify('Briefing copiado! Cole no ChatGPT para preparar o roteiro, confirme os fatos e depois use o ElevenLabs.');}
+  catch {notify('Não foi possível copiar automaticamente. Tente novamente em conexão segura (https).',true);}
+});
+$('copy-script').addEventListener('click',async()=>{
+  const value=fields.script.value.trim();if(!value)return;
+  if (/\[[^\]]+\]/.test(value)) {
+    notify('Preencha primeiro as instruções entre colchetes com sua análise do que aparece no vídeo.',true);
+    fields.script.focus();return;
+  }
+  try {await navigator.clipboard.writeText(value);notify('Roteiro copiado. Edite as lacunas, gere a narração no ElevenLabs e volte para carregar o MP3.');}
+  catch {fields.script.focus();fields.script.select();notify('Selecione o roteiro no campo e copie com Ctrl+C.');}
+});
+fields.script.addEventListener('input',()=>{
+  if(scenes.length){pause();scenes=[];drawSceneRows();notify('Roteiro alterado. Clique em “Montar cenas para prévia” novamente.');}
+  updateReady();
+});
+fields.duration.addEventListener('change',()=>{
+  if(cutCandidates.length) setCandidateStatus('Duração modificada. Clique em “Analisar vídeo e sugerir cortes” para atualizar as opções.');
+});
 
 function stripMarkup(text) { return text.replace(/\*\*/g, '').replace(/\*/g,'').trim(); }
 function phraseList(text) {
@@ -147,7 +287,7 @@ function drawSceneRows() {
   list.replaceChildren();
   if (!scenes.length) {
     const p = document.createElement('p'); p.className = 'empty';
-    p.textContent = 'Importe o vídeo e clique em “Montar cenas”.'; list.append(p); return;
+    p.textContent = 'Escolha um corte, complete seu roteiro e clique em “Montar cenas para prévia”.'; list.append(p); return;
   }
   const fragment = document.createDocumentFragment();
   scenes.forEach((scene, i) => {
@@ -189,6 +329,7 @@ $('prepare').addEventListener('click', () => {
   pause();
   try {
     scenes = createTimeline(); drawSceneRows(); updateReady();
+    videoPlayer.controls=false; $('preview-layer').hidden=false; watchCandidate.current=undefined;
     $('scrubber').value = 0; clock = 0; syncPreview(0);
     notify(`${scenes.length} cenas montadas para ${totalDuration.toFixed(1)} s. Revise os tempos, etiquetas e frases antes de exportar.`);
   } catch (e) { notify(e.message,true); }
@@ -206,7 +347,9 @@ $('transcribe').addEventListener('click', async () => {
       const words = part.text.trim().split(/\s+/);
       for (let i=0;i<words.length;i+=11) fragments.push(words.slice(i,i+11).join(' '));
     }
+    if (fields.script.value.trim() && !window.confirm('Substituir o texto do roteiro pela transcrição do MP3?')) return;
     fields.script.value=fragments.join('\n');
+    scenes=[];drawSceneRows();updateReady();
     notify('Narração transcrita. Revise o texto, corrija palavras e clique em “Montar cenas”.');
   } catch(e) { notify(e.name === 'AbortError'?'Transcrição cancelada.':e.message,true); }
   finally { renderController=undefined; setBusy(false); }
@@ -284,7 +427,10 @@ function setBusy(value){
   $('prepare').disabled=value || !videoFile;
   $('transcribe').disabled=value || !voiceFile;
   $('render').disabled=value || !scenes.length;
-  $('cancel').hidden=!value;
+  $('analyze-cuts').disabled=value || !videoFile;
+  $('copy-script').disabled=value || !fields.script.value.trim();
+  $('copy-brief').disabled=value || !selectedCut;
+  $('cancel').hidden=!value || Boolean(analysisController);
   $('cancel').disabled=!value;
   updateReady();
 }
@@ -293,6 +439,10 @@ $('cancel').addEventListener('click',()=>{
 });
 $('render').addEventListener('click',async()=>{
   if(!scenes.length || renderBusy)return;
+  if (fields.script.value.includes('[') && fields.script.value.includes(']')) {
+    notify('Seu roteiro ainda contém instruções entre colchetes. Preencha o conteúdo real e monte as cenas novamente.',true);
+    return;
+  }
   pause();
   const snapshot=scenes.map(s=>({...s}));
   for(const s of snapshot){
