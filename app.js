@@ -65,18 +65,33 @@ for (const choice of cutCounts) {
     generate.textContent = "Gerar " + count + " " + (count === 1 ? "corte" : "cortes");
   });
 }
-if (window.matchMedia("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)").matches) {
-  const hero = document.querySelector(".hero");
-  hero.addEventListener("pointermove", event => {
-    const rect = hero.getBoundingClientRect();
-    hero.style.setProperty("--art-x", ((event.clientX - rect.left) / rect.width - .5) * -14 + "px");
-    hero.style.setProperty("--art-y", ((event.clientY - rect.top) / rect.height - .5) * -14 + "px");
-  });
-  hero.addEventListener("pointerleave", () => {
-    hero.style.removeProperty("--art-x");
-    hero.style.removeProperty("--art-y");
-  });
+const background = document.querySelector(".fundo-pagina");
+const steps = document.querySelector("#como-funciona");
+const librarySection = document.querySelector("#biblioteca");
+let backgroundFrame = 0;
+
+function updateBackground() {
+  backgroundFrame = 0;
+  const viewportHeight = document.documentElement.clientHeight;
+  const trigger = viewportHeight * .58;
+  const atEnd = window.scrollY > 0 && window.scrollY + viewportHeight >= document.documentElement.scrollHeight - 2;
+  let scene = "neon";
+  if (librarySection.getBoundingClientRect().top <= trigger || atEnd) {
+    scene = "colagem";
+  } else if (steps.getBoundingClientRect().top <= trigger) {
+    scene = "personagens";
+  }
+  if (background.dataset.cena !== scene) background.dataset.cena = scene;
 }
+
+function scheduleBackgroundUpdate() {
+  if (!backgroundFrame) backgroundFrame = requestAnimationFrame(updateBackground);
+}
+
+window.addEventListener("scroll", scheduleBackgroundUpdate, { passive: true });
+window.addEventListener("resize", scheduleBackgroundUpdate);
+window.addEventListener("pageshow", scheduleBackgroundUpdate);
+scheduleBackgroundUpdate();
 
 function updateProgress(amount, message) {
   const bounded = Math.max(0, Math.min(100, Math.round(amount)));
