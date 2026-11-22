@@ -1,5 +1,5 @@
 // Modo Aprimorado: captura quadros somente do trecho selecionado e solicita um roteiro original.
-// Chaves da IA nunca devem ser usadas aqui: somente o Worker privado conhece OPENAI_API_KEY.
+// Chaves da IA nunca devem ser usadas aqui: somente o Worker privado conhece GEMINI_API_KEY.
 const FRAME_POINTS = [0.10, 0.36, 0.62, 0.88];
 const MAX_IMAGE_WIDTH = 448;
 
