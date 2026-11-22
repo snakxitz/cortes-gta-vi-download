@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from socialkit import download_socialkit
 
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
 MAX_BYTES = 250 * 1024 * 1024
@@ -54,7 +55,7 @@ if (
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(
-    CORSMiddleware, allow_origins=[origin], allow_methods=["POST"],
+    CORSMiddleware, allow_origins=[origin], allow_methods=["POST"], allow_headers=["X-SocialKit-Key"],
     expose_headers=["Content-Disposition"],
 )
 
@@ -125,10 +126,14 @@ def download(video_id, directory):
         title = json.loads(title_file.read_text(encoding="utf-8").strip().splitlines()[-1])
     except (OSError, ValueError, IndexError):
         title = ""
+    return output, filename_for_title(title, video_id)
+
+
+def filename_for_title(title, video_id):
     if not isinstance(title, str):
         title = ""
     title = re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]', " ", title).strip()[:150]
-    return output, (title or video_id) + ".mp4"
+    return (title or video_id) + ".mp4"
 
 
 class ImportedVideo(FileResponse):
@@ -154,12 +159,19 @@ def import_video(video_id: str, request: Request):
         raise HTTPException(403, "Abra a importação pela página do estúdio.")
     if not VIDEO_ID.fullmatch(video_id):
         raise HTTPException(400, "Use um link válido do YouTube.")
+    socialkit_key = request.headers.get("x-socialkit-key")
+    if socialkit_key is not None and not re.fullmatch(r"[\x21-\x7e]{1,256}", socialkit_key):
+        raise HTTPException(400, "Informe uma chave válida do SocialKit.")
     if not IMPORT_SLOT.acquire(blocking=False):
         raise HTTPException(429, "O importador está ocupado. Aguarde e tente novamente.")
     directory = None
     try:
         directory = TemporaryDirectory(prefix="cortes-youtube-")
-        path, filename = download(video_id, Path(directory.name))
+        if socialkit_key:
+            path, title = download_socialkit(video_id, Path(directory.name), socialkit_key, MAX_BYTES)
+            filename = filename_for_title(title, video_id)
+        else:
+            path, filename = download(video_id, Path(directory.name))
         return ImportedVideo(path, filename, directory)
     except BaseException:
         try:

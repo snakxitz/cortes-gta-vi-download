@@ -62,6 +62,11 @@
 <label for="link">Link direto de MP4 ou MOV</label>
 <input id="link" class="campo" type="url" placeholder="https://…/video.mp4" required aria-describedby="limite-link retorno-link">
 <p id="limite-link">Até 250 MB. O endereço precisa abrir o arquivo de vídeo e permitir acesso por este site.</p>
+<div id="teste-socialkit" hidden>
+<label for="chave-socialkit">Chave de API do SocialKit</label>
+<input id="chave-socialkit" class="campo" type="password" maxlength="256" autocomplete="off" aria-describedby="ajuda-socialkit" required disabled>
+<p id="ajuda-socialkit">O importador envia a chave ao SocialKit só para este pedido. Use um vídeo autorizado de 30 segundos a 5 minutos.</p>
+</div>
 <button class="button secondary" id="importar-link" type="submit">Importar vídeo</button>
 <p id="retorno-link" role="status"></p>
 <div class="acoes-locais acoes-youtube" id="acoes-youtube" hidden>

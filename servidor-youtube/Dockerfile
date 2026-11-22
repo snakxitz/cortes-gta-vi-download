@@ -9,7 +9,7 @@ RUN apt-get update \
 WORKDIR /app
 COPY requirements.txt .
 RUN python -m pip install --no-cache-dir -r requirements.txt
-COPY importar.py .
+COPY importar.py socialkit.py .
 
 USER 10001
 EXPOSE 8080

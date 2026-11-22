@@ -105,14 +105,15 @@ export async function fetchLinkedVideo(input, onProgress = () => {}, { signal } 
   return readVideoResponse(response, link.url, onProgress, signal);
 }
 
-export async function fetchYoutubeVideo(endpoint, source, onProgress, { signal } = {}) {
+export async function fetchYoutubeVideo(endpoint, source, onProgress, { signal, accessKey } = {}) {
   const videoId = new URL(source.url).searchParams.get("v");
   if (!YOUTUBE_ID.test(videoId ?? "")) throw new Error("Cole o link de um vídeo do YouTube.");
   const url = new URL(endpoint);
   url.pathname = url.pathname.replace(/\/$/, "") + "/importar/" + videoId;
   let response;
   try {
-    response = await fetch(url, { method: "POST", credentials: "omit", redirect: "error", signal });
+    const headers = accessKey ? { "X-SocialKit-Key": accessKey } : undefined;
+    response = await fetch(url, { method: "POST", credentials: "omit", redirect: "error", headers, signal });
   } catch {
     signal?.throwIfAborted();
     throw new Error("O servidor de importação do YouTube está inacessível. Tente novamente ou envie o MP4.");

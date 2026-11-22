@@ -36,6 +36,8 @@ O importador recebe um vídeo próprio ou autorizado e entrega um MP4 ao estúdi
 
 Enquanto `youtubeImport` estiver vazio, o endereço em `youtubeImportTest` pode ser usado abrindo o estúdio com `?teste-youtube=1#estudio`. Esse endereço de teste permite conferir a importação antes de habilitá-la no site inteiro.
 
+Para testar com o [SocialKit](https://docs.socialkit.dev/api-reference/async-download-api), abra o estúdio com `?teste-youtube=1&provedor=socialkit#estudio`. Cole o link e informe sua chave de API no campo do teste. O importador usa HTTPS para fazer o pedido ao SocialKit e não grava a chave. O teste pede MP4 em até 480p, entre 30 segundos e 5 minutos.
+
 ### Instalação em servidor com Docker
 
 1. Em uma hospedagem com Docker, construa a imagem com `docker build -t cortes-youtube servidor-youtube`.

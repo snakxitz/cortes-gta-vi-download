@@ -17,6 +17,8 @@ const importButton = document.querySelector("#importar-link");
 const linkFeedback = document.querySelector("#retorno-link");
 const loadedStatus = document.querySelector("#video-carregado");
 const youtubeActions = document.querySelector("#acoes-youtube");
+const socialKitPanel = document.querySelector("#teste-socialkit");
+const socialKitInput = document.querySelector("#chave-socialkit");
 const sourceModes = [...document.querySelectorAll('input[name="origem"]')];
 const cutCounts = [...document.querySelectorAll('input[name="quantidade"]')];
 const cutLengths = [...document.querySelectorAll('input[name="duracao-corte"]')];
@@ -26,6 +28,7 @@ let loadedFile;
 let preview;
 let backend;
 let youtubeImport;
+let socialKitTest = false;
 let linkBlocked = false;
 
 function loadVideo(file) {
@@ -82,8 +85,10 @@ fetch("config.json").then(response => response.ok ? response.json() : null).then
       linkField.placeholder = "https://www.youtube.com/watch?v=…";
       document.querySelector("#limite-link").textContent = "Use um vídeo próprio ou autorizado. Links aceitam arquivos de até 250 MB.";
       if (testingImport) {
+        socialKitTest = params.get("provedor") === "socialkit";
         document.querySelector("#estado").textContent =
-          "Teste do importador do YouTube. O primeiro pedido pode demorar enquanto o servidor liga.";
+          socialKitTest ? "Teste de importação do YouTube pelo SocialKit."
+            : "Teste do importador do YouTube. O primeiro pedido pode demorar enquanto o servidor liga.";
         sourceModes.find(choice => choice.value === "link").click();
         const videoId = params.get("video");
         if (/^[A-Za-z0-9_-]{11}$/.test(videoId ?? "")) {
@@ -123,6 +128,8 @@ const linkPanel = document.querySelector("#painel-link");
 function showYouTubeNotice(youtube) {
   linkBlocked = youtube && !youtubeImport && !backend;
   youtubeActions.hidden = !linkBlocked;
+  socialKitPanel.hidden = !socialKitTest || !youtube;
+  socialKitInput.disabled = Boolean(activeJob) || socialKitPanel.hidden;
   importButton.disabled = Boolean(activeJob) || linkBlocked;
   importButton.textContent = youtube && youtubeImport ? "Baixar para o estúdio" : "Importar vídeo";
   if (linkBlocked) {
@@ -218,6 +225,7 @@ generate.addEventListener("click", () => {
 function startJob(message) {
   activeJob = new AbortController();
   input.disabled = language.disabled = generate.disabled = linkField.disabled = importButton.disabled = true;
+  socialKitInput.disabled = true;
   for (const choice of sourceModes) choice.disabled = true;
   for (const choice of cutCounts) choice.disabled = true;
   for (const choice of cutLengths) choice.disabled = true;
@@ -235,6 +243,7 @@ function finishJob() {
   cancel.hidden = true;
   input.disabled = language.disabled = linkField.disabled = false;
   importButton.disabled = linkBlocked;
+  socialKitInput.disabled = socialKitPanel.hidden;
   generate.disabled = !loadedFile;
   for (const choice of sourceModes) choice.disabled = false;
   for (const choice of cutCounts) choice.disabled = false;
@@ -243,6 +252,8 @@ function finishJob() {
 
 async function importVideo(source) {
   const youtube = source.kind === "youtube";
+  const accessKey = youtube && socialKitTest ? socialKitInput.value.trim() : "";
+  socialKitInput.value = "";
   const message = youtube ? "Importando o vídeo do YouTube…" : "Baixando o vídeo do link…";
   const signal = startJob(message);
   progress.removeAttribute("value");
@@ -251,7 +262,7 @@ async function importVideo(source) {
   };
   try {
     const file = youtube
-      ? await fetchYoutubeVideo(youtubeImport, source, downloading, { signal })
+      ? await fetchYoutubeVideo(youtubeImport, source, downloading, { signal, accessKey })
       : await fetchLinkedVideo(source.url, downloading, { signal });
     signal.throwIfAborted();
     loadVideo(file);
