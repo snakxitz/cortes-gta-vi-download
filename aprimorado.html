@@ -62,7 +62,7 @@
 </section>
 <section aria-labelledby="ia-title" class="av-panel" id="gerador-ia">
 <div class="section-head"><span class="step-number">IA</span><h2 id="ia-title">Gerar roteiro automaticamente a partir do vídeo</h2></div>
-<p class="hint">Escolha um corte acima. O editor envia somente quatro quadros do trecho e a transcrição disponível para um serviço privado de IA. Não é necessário gravar sua voz. A IA não vê todos os movimentos: confira as afirmações antes de publicar.</p>
+<p class="hint">Escolha um corte acima. O editor envia somente quatro quadros do trecho e a transcrição disponível para um serviço privado conectado ao Gemini. Você gera o MP3 no ElevenLabs depois. A IA não vê todos os movimentos: confira as afirmações antes de publicar.</p>
 <div class="two-cols">
 <div><label for="ia-endpoint">URL HTTPS do seu Worker de IA</label><input id="ia-endpoint" type="text" placeholder="https://cortes-gta-vi-roteiros.seu-usuario.workers.dev" autocomplete="off"/></div>
 <div><label for="ia-code">Código de acesso privado</label><input id="ia-code" type="password" placeholder="Código configurado no Worker" autocomplete="off"/></div>
@@ -70,7 +70,7 @@
 <div class="inline-actions"><button type="button" id="ia-generate" class="av-button main" disabled>Gerar roteiro com IA</button><button type="button" id="ia-cancel" class="av-button ghost" hidden>Cancelar</button></div>
 <p id="ia-status" class="hint" role="status" aria-live="polite">Selecione um trecho para ativar a geração.</p>
 <div id="ia-evidence" class="ia-evidence"></div>
-<p class="hint">A chave do provedor de IA não deve ser inserida aqui: ela é configurada como segredo no Worker. A análise utiliza API externa e pode gerar custos.</p>
+<p class="hint">A chave do provedor de IA não deve ser inserida aqui: ela é configurada como segredo no Worker. A análise utiliza a modalidade gratuita do Gemini quando disponível, respeitando as cotas da sua conta.</p>
 </section>
 <section aria-labelledby="script-title" class="av-panel">
 <div class="section-head"><span class="step-number">04</span><h2 id="script-title">4. Roteiro da sua narração</h2></div>
