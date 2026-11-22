@@ -57,12 +57,13 @@ startButton.addEventListener('click',async()=>{
     script.value=result.roteiro;
     script.dispatchEvent(new Event('input',{bubbles:true}));
     details.replaceChildren();
-    section('Observações baseadas nos quadros',result.observacoes);
+    if (result.tema) { const t=document.createElement('p'); const b=document.createElement('strong'); b.textContent='Tema identificado: '; t.append(b,document.createTextNode(result.tema)); details.append(t); }
+    section('Evidências para o tema',result.observacoes);
     section('Pontos para conferir',result.alertas);
     const reminder=document.createElement('p');
-    reminder.textContent='Roteiro gerado automaticamente. Confira os detalhes e a correspondência das cenas antes de copiar para o ElevenLabs.';
+    reminder.textContent='Roteiro temático gerado a partir dos cortes. Verifique se o assunto e as afirmações correspondem ao material antes de copiar para o ElevenLabs.';
     details.append(reminder);
-    message('Roteiro criado e inserido no editor. Revise o conteúdo e use “Copiar roteiro para o ElevenLabs”.');
+    message('Roteiro temático pronto. Revise o assunto e use “Copiar roteiro para o ElevenLabs”.');
   }catch(error){
     message(current.signal.aborted?'Análise cancelada.':'Falha na análise: '+(error?.message||'Erro inesperado.'),!current.signal.aborted);
   }finally{
