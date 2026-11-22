@@ -226,3 +226,23 @@ export function formatTime(seconds) {
   const whole = Math.floor(seconds);
   return Math.floor(whole / 60) + ":" + String(whole % 60).padStart(2, "0");
 }
+
+export async function selectVisualClips(duration, count, seconds, rateActivity) {
+  const limit = Math.min(count, Math.floor(duration / seconds));
+  const sectionLength = duration / limit;
+  const slack = sectionLength - seconds;
+  const choices = Array.from({length: limit}, (_, index) =>
+    [...new Set([.5, 0, 1].map(fraction => index * sectionLength + slack * fraction))]);
+  const times = [];
+  for (let option = 0; option < 3; option++) {
+    for (const starts of choices) {
+      if (starts[option] !== undefined) times.push(starts[option] + seconds / 3);
+    }
+  }
+  const activity = times.length > limit ? await rateActivity(times) : new Map();
+  return choices.map(starts => {
+    const start = starts.reduce((best, next) =>
+      (activity.get(next + seconds / 3) ?? 0) > (activity.get(best + seconds / 3) ?? 0) ? next : best);
+    return { start, end: start + seconds, visual: true };
+  });
+}

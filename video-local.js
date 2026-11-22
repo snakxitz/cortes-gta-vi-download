@@ -62,6 +62,7 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
   let busy = false;
   let source;
   let duration;
+  let hasAudio;
 
   function close() {
     if (closed) return;
@@ -126,10 +127,10 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
     }
     const video = metadata.streams?.find(stream =>
       stream.codec_type === "video" && !stream.disposition?.attached_pic);
-    const hasAudio = metadata.streams?.some(stream => stream.codec_type === "audio");
-    if (!video || !hasAudio) {
-      throw new Error("Escolha um vídeo com imagem e uma faixa de áudio.");
+    if (!video) {
+      throw new Error("Escolha um arquivo com uma faixa de vídeo.");
     }
+    hasAudio = metadata.streams.some(stream => stream.codec_type === "audio");
     const lengths = [video.duration, metadata.format?.duration].map(Number)
       .filter(value => Number.isFinite(value) && value > 0);
     duration = Math.min(...lengths);
@@ -201,7 +202,7 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
     const start = Math.min(startSeconds, duration - seconds);
     return exportMedia([
       "-threads", "1", "-ss", start.toFixed(6), "-i", source, "-t", String(seconds),
-      "-filter_complex_threads", "1", "-filter_complex", VIDEO_FILTER, "-map", "[v]", "-map", "0:a:0",
+      "-filter_complex_threads", "1", "-filter_complex", VIDEO_FILTER, "-map", "[v]", "-map", "0:a:0?",
       "-c:v", "libx264", "-threads", "1", "-preset", "ultrafast", "-crf", "23",
       "-fpsmax", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
     ], {
@@ -212,5 +213,5 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
     });
   }
 
-  return { duration, extractAudio, render, close };
+  return { duration, hasAudio, extractAudio, render, close };
 }

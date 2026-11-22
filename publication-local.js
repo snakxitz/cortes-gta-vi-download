@@ -255,8 +255,17 @@ function composeTitle(hook) {
 }
 
 export function generatePublication({
-  segments = [], text = "", hook: originalHook, start = 0, end = Infinity,
+  segments = [], text = "", hook: originalHook, start = 0, end = Infinity, visual = false,
 } = {}) {
+  if (visual) {
+    return {
+      title: "Cena em destaque",
+      description: "Trecho em formato vertical. O que mais chamou sua atenção nesta cena?",
+      hook: "O que chamou sua atenção nesta cena?",
+      cta: "Comente o que você percebeu",
+      tags: ["Corte de vídeo", "Vídeo vertical", "Shorts", "TikTok", "Cena em destaque"],
+    };
+  }
   const cues = candidateCues(segments, text, start, end);
   const editorial = cues.filter(cue => !PROMO.test(cue.folded));
   const foldedHook = normalize(originalHook?.text);

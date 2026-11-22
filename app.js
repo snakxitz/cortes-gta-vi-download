@@ -1,6 +1,7 @@
-import { formatTime, selectClips } from "./clip-local.js";
+import { formatTime, selectClips, selectVisualClips } from "./clip-local.js";
 import { generatePublication } from "./publication-local.js";
 import { mountLibrary } from "./studio-library.js";
+import { sampleVisualActivity } from "./cover-local.js";
 const input = document.querySelector("#entrada");
 const video = document.querySelector("#video");
 const downloadOriginal = document.querySelector("#baixar-original");
@@ -147,9 +148,7 @@ async function runJob(file) {
     if (!signal.aborted) updateProgress(amount, message);
   };
   try {
-    const [{ createVideoSession }, { createTranscriptionSession }] = await Promise.all([
-      import("./video-local.js"), import("./speech-local.js"),
-    ]);
+    const { createVideoSession } = await import("./video-local.js");
     signal.throwIfAborted();
     videoSession = await createVideoSession(file, (fraction, message) => {
       report(fraction * 16, message || "Lendo o vídeo…");
@@ -157,50 +156,57 @@ async function runJob(file) {
     if (videoSession.duration < seconds) {
       throw new Error("Escolha um vídeo de pelo menos " + seconds + " segundos ou reduza a duração do corte.");
     }
-    phase = "carregar o modelo de transcrição";
-    report(16, "Carregando o modelo de transcrição…");
-    speechSession = await createTranscriptionSession(fraction => {
-      report(16 + fraction * 7, "Carregando o modelo de transcrição…");
-    }, { language: language.value, signal });
-
-    phase = "transcrever o áudio";
     const transcript = [];
     const { duration } = videoSession;
-    const blockDuration = 120;
-    const overlap = 3;
-    for (let start = 0; start < duration; start += blockDuration) {
-      signal.throwIfAborted();
-      const end = Math.min(start + blockDuration, duration);
-      const from = Math.max(0, start - overlap);
-      const to = Math.min(end + overlap, duration);
-      const interval = formatTime(start) + " a " + formatTime(end) + " de " + formatTime(duration);
-      const blockProgress = (fraction, message) => {
-        report(23 + (start + (end - start) * fraction) / duration * 42, message + " · " + interval);
-      };
-      blockProgress(0, "Extraindo áudio");
-      const audio = await videoSession.extractAudio(from, to - from, fraction => {
-        blockProgress(fraction * .15, "Extraindo áudio");
-      });
-      blockProgress(.15, "Transcrevendo áudio");
-      const parts = await speechSession.transcribe(audio, fraction => {
-        blockProgress(.15 + fraction * .85, "Transcrevendo áudio");
-      });
-      for (const part of parts) {
-        const absoluteStart = from + part.start;
-        const absoluteEnd = Math.min(duration, from + part.end);
-        const midpoint = (absoluteStart + absoluteEnd) / 2;
-        if (midpoint >= start && midpoint < end) {
-          transcript.push({ start: absoluteStart, end: absoluteEnd, text: part.text });
+    if (videoSession.hasAudio && language.value !== "visual") {
+      phase = "carregar o modelo de transcrição";
+      report(16, "Carregando o modelo de transcrição…");
+      const { createTranscriptionSession } = await import("./speech-local.js");
+      speechSession = await createTranscriptionSession(fraction => {
+        report(16 + fraction * 7, "Carregando o modelo de transcrição…");
+      }, { language: language.value, signal });
+
+      phase = "transcrever o áudio";
+      const blockDuration = 120;
+      const overlap = 3;
+      for (let start = 0; start < duration; start += blockDuration) {
+        signal.throwIfAborted();
+        const end = Math.min(start + blockDuration, duration);
+        const from = Math.max(0, start - overlap);
+        const to = Math.min(end + overlap, duration);
+        const interval = formatTime(start) + " a " + formatTime(end) + " de " + formatTime(duration);
+        const blockProgress = (fraction, message) => {
+          report(23 + (start + (end - start) * fraction) / duration * 42, message + " · " + interval);
+        };
+        blockProgress(0, "Extraindo áudio");
+        const audio = await videoSession.extractAudio(from, to - from, fraction => {
+          blockProgress(fraction * .15, "Extraindo áudio");
+        });
+        blockProgress(.15, "Transcrevendo áudio");
+        const parts = await speechSession.transcribe(audio, fraction => {
+          blockProgress(.15 + fraction * .85, "Transcrevendo áudio");
+        });
+        for (const part of parts) {
+          const absoluteStart = from + part.start;
+          const absoluteEnd = Math.min(duration, from + part.end);
+          const midpoint = (absoluteStart + absoluteEnd) / 2;
+          const spoken = part.text.replace(/\[[^\]]*\]|\([^)]*\)/g, "");
+          if (midpoint >= start && midpoint < end && /[a-z0-9]/i.test(spoken.normalize("NFD"))) {
+            transcript.push({ start: absoluteStart, end: absoluteEnd, text: part.text });
+          }
         }
       }
+      speechSession.close();
+      speechSession = undefined;
     }
-    speechSession.close();
-    speechSession = undefined;
 
     phase = "selecionar os trechos";
     signal.throwIfAborted();
-    report(65, "Selecionando trechos de " + seconds + " s…");
-    const clips = selectClips(transcript, duration, file.name, requested, seconds);
+    const visual = transcript.length === 0;
+    report(65, visual ? "Analisando as cenas do vídeo…" : "Selecionando trechos de " + seconds + " s…");
+    const clips = visual
+      ? await selectVisualClips(duration, requested, seconds, times => sampleVisualActivity(video, times, signal))
+      : selectClips(transcript, duration, file.name, requested, seconds);
     if (!clips.length) throw new Error("Nenhum trecho de " + seconds + " segundos disponível.");
     const createdAt = Date.now();
     const span = 35 / clips.length;
@@ -235,10 +241,11 @@ async function runJob(file) {
     const limited = completed < requested
       ? " O vídeo rendeu " + completed + " de " + requested + " cortes de " + seconds + " s sem sobreposição."
       : "";
-    const includesPlainSpeech = clips.some(clip => clip.signals.every(name => name === "GTA VI"));
-    const review = includesPlainSpeech
-      ? " Revise na biblioteca o gancho e a capa dos trechos sugeridos pela narração."
-      : "";
+    const review = visual
+      ? " Cortes sem narração. Revise o título, o gancho e a capa na biblioteca."
+      : clips.some(clip => clip.signals.every(name => name === "GTA VI"))
+        ? " Revise na biblioteca o gancho e a capa dos trechos sugeridos pela narração."
+        : "";
     const result = ready + limited + review;
     report(100, result);
     library.reveal(result);
