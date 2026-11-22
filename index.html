@@ -28,7 +28,7 @@
 <section class="wrap steps" id="como-funciona">
 <h2>Do vídeo longo ao corte vertical</h2>
 <div class="steps-grid">
-<div><h3>Escolha a origem</h3><p>Escolha um MP4 ou MOV próprio ou cole um link direto para o arquivo.</p></div>
+<div><h3>Escolha a origem</h3><p>Selecione um arquivo MP4 ou MOV com narração sobre GTA VI.</p></div>
 <div><h3>Revise os trechos</h3><p>Escolha 1, 3 ou 5 cortes de 30 ou 65 segundos em 1080 × 1920.</p></div>
 <div><h3>Prepare a publicação</h3><p>Edite título, descrição e tags e baixe a capa do corte.</p></div>
 </div>
@@ -36,44 +36,12 @@
 <section class="wrap studio" id="estudio">
 <h2>Estúdio de cortes</h2>
 <p id="estado" role="status">O primeiro uso baixa o modelo de transcrição. Mantenha a aba aberta durante a análise.</p>
-<div id="geracao" class="geracao" hidden>
-<div class="geracao-controles">
-<button class="button" id="motor" type="button" aria-controls="janela-motor" aria-expanded="false">Iniciar geração</button>
-<a id="motor-externo" target="_blank" rel="noopener noreferrer">Abrir em outra aba</a>
-</div>
-<iframe id="janela-motor" title="Gerador de cortes Cortes GTA VI" referrerpolicy="no-referrer" hidden></iframe>
-</div>
 <div class="pane entrada-painel" id="editor-previa">
 <div class="entrada-grid">
 <div>
-<fieldset>
-<legend>Origem do vídeo</legend>
-<div class="origens">
-<label><input type="radio" name="origem" value="arquivo" checked> Enviar arquivo</label>
-<label><input type="radio" name="origem" value="link"> Colar link</label>
-</div>
-</fieldset>
-<div id="painel-arquivo">
 <label for="entrada">Vídeo em MP4 ou MOV</label>
 <input id="entrada" type="file" accept=".mp4,.mov,video/mp4,video/quicktime">
 <p id="arquivo" role="status">MP4 ou MOV de 30 segundos a 2 horas, com até 2 GB.</p>
-</div>
-<form id="painel-link" hidden>
-<label for="link">Link direto de MP4 ou MOV</label>
-<input id="link" class="campo" type="url" placeholder="https://…/video.mp4" required aria-describedby="limite-link retorno-link">
-<p id="limite-link">Até 250 MB. O endereço precisa abrir o arquivo de vídeo e permitir acesso por este site.</p>
-<div id="teste-socialkit" hidden>
-<label for="chave-socialkit">Chave de API do SocialKit</label>
-<input id="chave-socialkit" class="campo" type="password" maxlength="256" autocomplete="off" aria-describedby="ajuda-socialkit" required disabled>
-<p id="ajuda-socialkit">O importador envia a chave ao SocialKit só para este pedido. Use um vídeo autorizado de 30 segundos a 5 minutos.</p>
-</div>
-<button class="button secondary" id="importar-link" type="submit">Importar vídeo</button>
-<p id="retorno-link" role="status"></p>
-<div class="acoes-locais acoes-youtube" id="acoes-youtube" hidden>
-<button class="button secondary" id="enviar-youtube" type="button">Selecionar MP4 ou MOV</button>
-<a href="https://support.google.com/youtube/answer/56100?hl=pt-BR" target="_blank" rel="noopener noreferrer">Como baixar meu vídeo do YouTube</a>
-</div>
-</form>
 <p id="video-carregado" role="status" hidden></p>
 <label for="idioma-local">Idioma da narração</label>
 <select id="idioma-local"><option value="pt">Português</option><option value="en">Inglês</option></select>
@@ -100,6 +68,16 @@
 <div class="video-origem">
 <video id="video" controls playsinline preload="metadata" aria-label="Prévia do vídeo original" hidden></video>
 <a class="button secondary" id="baixar-original" download hidden>Baixar vídeo original</a>
+<aside class="guia-download" aria-labelledby="titulo-guia-download">
+<h3 id="titulo-guia-download">Como baixar um vídeo do YouTube</h3>
+<ol>
+<li>Copie o link de um vídeo seu ou que você tem autorização para usar.</li>
+<li>Abra o YTDown, cole o link e clique em <strong>Baixar</strong>.</li>
+<li>Escolha o formato MP4 e baixe o arquivo.</li>
+<li>Volte para esta aba e selecione o MP4 que você baixou.</li>
+</ol>
+<a class="button secondary" href="https://app.ytdown.to/pt32/" target="_blank" rel="noopener noreferrer">Abrir YTDown em outra aba</a>
+</aside>
 </div>
 </div>
 <progress id="progresso-local" aria-label="Progresso do estúdio" max="100" value="0" hidden></progress>
