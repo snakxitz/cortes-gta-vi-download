@@ -1,0 +1,47 @@
+name: Publicar API de Roteiros GTA VI (Cloudflare)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Publicar Worker e configurar secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v6
+
+      - name: Conferir segredos configurados
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OPENAI_SECRET: ${{ secrets.OPENAI_API_KEY }}
+          ACCESS_SECRET: ${{ secrets.EDITOR_ACCESS_CODE }}
+        run: |
+          for variable in CF_API_TOKEN CF_ACCOUNT_ID OPENAI_SECRET ACCESS_SECRET; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::Falta configurar o secret correspondente a $variable nas configurações do repositório."
+              exit 1
+            fi
+          done
+          if [ "${#ACCESS_SECRET}" -lt 16 ]; then
+            echo "::error::EDITOR_ACCESS_CODE deve ter pelo menos 16 caracteres."
+            exit 1
+          fi
+
+      - name: Publicar Worker no Cloudflare
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: backend-ia
+          secrets: |
+            OPENAI_API_KEY
+            EDITOR_ACCESS_CODE
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          EDITOR_ACCESS_CODE: ${{ secrets.EDITOR_ACCESS_CODE }}
