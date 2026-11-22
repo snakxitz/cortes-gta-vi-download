@@ -9,6 +9,7 @@
 <link href="style.css" rel="stylesheet"/>
 <link href="aprimorado.css" rel="stylesheet"/>
 <script src="aprimorado.js" type="module"></script>
+<script src="aprimorado-ia-ui.js" type="module"></script>
 </head>
 <body class="editor-avancado">
 <header class="av-header wrap">
@@ -20,7 +21,7 @@
 <p class="eyebrow">ESTÚDIO DE CORTES · NOVO MODO</p>
 <h1>Cortes <em>primeiro.</em> Narração depois.</h1>
 <p>Analise o vídeo, escolha os melhores trechos, consulte a transcrição e prepare sua narração no ElevenLabs. Só então monte as cenas e exporte.</p>
-<div class="av-badges"><span>GTA V × GTA VI</span><span>9:16</span><span>MP4</span><span>Sem servidor</span><span>Fluxo em 3 etapas</span></div>
+<div class="av-badges"><span>GTA V × GTA VI</span><span>9:16</span><span>MP4</span><span>IA visual opcional</span><span>Fluxo em 3 etapas</span></div>
 </section>
 <div class="av-layout">
 <div class="av-left">
@@ -59,11 +60,23 @@
 <p aria-live="polite" class="hint" id="cut-status" role="status">Carregue um vídeo para começar.</p>
 <div class="cut-list" id="cut-list"><p class="empty">Os trechos sugeridos aparecerão aqui.</p></div>
 </section>
+<section aria-labelledby="ia-title" class="av-panel" id="gerador-ia">
+<div class="section-head"><span class="step-number">IA</span><h2 id="ia-title">Gerar roteiro automaticamente a partir do vídeo</h2></div>
+<p class="hint">Escolha um corte acima. O editor envia somente quatro quadros do trecho e a transcrição disponível para um serviço privado conectado ao Gemini. Você gera o MP3 no ElevenLabs depois. A IA não vê todos os movimentos: confira as afirmações antes de publicar.</p>
+<div class="two-cols">
+<div><label for="ia-endpoint">URL HTTPS do seu Worker de IA</label><input id="ia-endpoint" type="url" value="https://tiny-unit-c547.snak-xit.workers.dev" readonly aria-describedby="ia-endpoint-help"/><p class="hint" id="ia-endpoint-help">Conectado ao seu Worker pessoal. Não coloque chaves de API neste campo.</p></div>
+<div><label for="ia-code">Código de acesso privado</label><input id="ia-code" type="password" placeholder="Código configurado no Worker" autocomplete="off"/></div>
+</div>
+<div class="inline-actions"><button type="button" id="ia-generate" class="av-button main" disabled>Gerar roteiro com IA</button><button type="button" id="ia-cancel" class="av-button ghost" hidden>Cancelar</button></div>
+<p id="ia-status" class="hint" role="status" aria-live="polite">Selecione um trecho para ativar a geração.</p>
+<div id="ia-evidence" class="ia-evidence"></div>
+<p class="hint">A chave do provedor de IA não deve ser inserida aqui: ela é configurada como segredo no Worker. A análise utiliza a modalidade gratuita do Gemini quando disponível, respeitando as cotas da sua conta.</p>
+</section>
 <section aria-labelledby="script-title" class="av-panel">
 <div class="section-head"><span class="step-number">04</span><h2 id="script-title">4. Roteiro da sua narração</h2></div>
 <label for="script">Roteiro-base editável (uma frase por linha)</label>
 <div class="cut-reference" hidden="hidden" id="cut-reference"><strong>Referência do corte escolhido</strong><p id="cut-reference-time"></p><p id="cut-transcript"></p><p class="hint">A transcrição ajuda a entender o trecho; escreva seus próprios comentários e confirme na imagem. Esse texto não é inserido automaticamente na narração.</p></div><textarea id="script" placeholder="Escolha um dos cortes acima. Você verá um roteiro-base para preencher com o que realmente aparece no trecho." rows="7"></textarea>
-<p class="hint">Depois de escolher um corte, confira o vídeo na prévia e a transcrição disponível. O roteiro-base contém lacunas entre colchetes. Se você quiser um roteiro completo, copie o briefing e peça para uma IA redigir com base no trecho. Confira o resultado antes de narrar. Não é possível identificar automaticamente detalhes que não foram falados.</p>
+<p class="hint">Depois de escolher um corte, confira o vídeo na prévia e a transcrição disponível. Para criar um roteiro completo automaticamente, use o painel de IA acima. Caso prefira, mantenha o briefing manual. Confira o resultado antes de narrar. Não é possível identificar automaticamente detalhes que não foram falados.</p>
 <div class="inline-actions"><button class="av-button ghost" disabled="disabled" id="copy-brief" type="button">Copiar briefing para criar roteiro com IA</button><button class="av-button ghost" disabled="disabled" id="copy-script" type="button">Copiar roteiro para o ElevenLabs</button></div>
 </section><section aria-labelledby="narracao-title" class="av-panel" id="narracao-etapa"><div class="section-head"><span class="step-number">05</span><h2 id="narracao-title">5. Adicionar a narração do ElevenLabs</h2></div><p class="hint">Quando o roteiro estiver pronto, gere o áudio no ElevenLabs e envie aqui. Não precisa de MP3 para selecionar cortes nem para escrever o roteiro.</p><label for="voice-file">Narração do ElevenLabs (MP3, WAV ou M4A) <small>opcional</small></label><input accept=".mp3,.wav,.m4a,audio/*" id="voice-file" type="file"/><label for="music-file">Música de fundo <small>opcional, use áudio licenciado</small></label><input accept=".mp3,.wav,.m4a,audio/*" id="music-file" type="file"/><div class="inline-actions"><button class="av-button ghost" disabled="disabled" id="transcribe" type="button">Transcrever MP3 (corrigir legenda)</button><button class="av-button" disabled="disabled" id="prepare" type="button">Montar cenas para prévia</button></div></section>
 <section aria-labelledby="scenes-title" class="av-panel">
@@ -91,6 +104,6 @@
 </aside>
 </div>
 </main>
-<footer class="wrap av-footer">Ferramenta independente para criadores · Modo Aprimorado v1.1 · <a href="./">Voltar ao estúdio original</a></footer>
+<footer class="wrap av-footer">Ferramenta independente para criadores · Modo Aprimorado v1.2 · <a href="./">Voltar ao estúdio original</a></footer>
 </body>
 </html>

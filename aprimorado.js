@@ -77,7 +77,7 @@ function updateReady() {
 fields.video.addEventListener('change', async () => {
   const f = fields.video.files?.[0];
   resetVideoPreview(); videoFile = undefined; videoDuration = 0; scenes = [];
-  cutCandidates = []; selectedCut = undefined; fields.script.value = '';
+  cutCandidates = []; selectedCut = undefined; document.dispatchEvent(new CustomEvent('aprimorado:corte-selecionado',{detail:null})); fields.script.value = '';
   $('cut-reference').hidden = true; showCandidateCards(); drawSceneRows(); updateReady();
   if (!f) return;
   if (!/\.(mp4|mov)$/i.test(f.name) || f.size === 0 || f.size > maxVideoBytes) {
@@ -169,7 +169,7 @@ videoPlayer.addEventListener('timeupdate',()=>{
 });
 function selectCandidate(c) {
   watchCandidate.current=undefined;
-  pause();selectedCut=c;
+  pause();selectedCut=c; document.dispatchEvent(new CustomEvent('aprimorado:corte-selecionado',{detail:{...c}}));
   fields.start.value=c.start.toFixed(2);
   fields.duration.value=String(Math.round(c.end-c.start));
   fields.script.value=draftNarration(fields.preset.value,c);
@@ -206,7 +206,7 @@ $('analyze-cuts').addEventListener('click',async()=>{
       analysisController.signal.throwIfAborted();
       cutCandidates=chooseVisualWindows(groups,activity);
     }
-    selectedCut=undefined; showCandidateCards();
+    selectedCut=undefined; document.dispatchEvent(new CustomEvent('aprimorado:corte-selecionado',{detail:null})); showCandidateCards();
     setCandidateStatus(`${cutCandidates.length} trechos sugeridos em ${timeLabel(from)}–${timeLabel(until)}. Assista às opções antes de escolher. A análise visual mede movimento, não identifica o jogo.`);
   } catch(error){
     setCandidateStatus(analysisController.signal.aborted?'Análise cancelada.':`Não foi possível sugerir cortes: ${error.message}`,true);

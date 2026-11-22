@@ -32,3 +32,13 @@ body.editor-avancado{background:radial-gradient(ellipse at 90% 2%,#512545 0%,tra
 .cut-reference .hint{color:#cab8d3}
 #cut-status{min-height:1.6em;overflow-wrap:anywhere}
 .av-panel input:disabled,.av-panel select:disabled,.av-panel textarea:disabled{opacity:.55}
+
+/* v1.2 - geração de roteiros por IA visual */
+#ia-code{width:100%;background:#191321;color:#fff5f7;border:1px solid #64526d;border-radius:9px;padding:10px 11px;font:inherit;font-size:.9rem}
+#ia-status{min-height:1.7em;overflow-wrap:anywhere}
+.ia-evidence{border-top:1px solid #58465f;margin-top:12px;padding-top:12px;color:#e1d8e7;font-size:.87rem}
+.ia-evidence:empty{display:none}
+.ia-evidence strong{display:block;margin:12px 0 4px}
+.ia-evidence ul{margin:0 0 10px;padding-left:20px}
+.ia-evidence li+li{margin-top:6px}
+.ia-evidence p{color:var(--av-muted)}
