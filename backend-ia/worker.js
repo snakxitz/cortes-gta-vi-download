@@ -37,20 +37,29 @@ function checkFrame(frame) {
   return Boolean(match && match[1].length <= FRAME_BASE64_LIMIT);
 }
 
-function instructions(duracao) {
+function instructions(duracao, estilo) {
+  const formats = {
+    comparacao: 'Compare conceitos, possibilidades ou características somente quando a evidência sustentar a relação. Foque no PORQUÊ a diferença importa, não no inventário de cenas.',
+    teoria: 'Desenvolva uma hipótese ou pergunta instigante de forma explícita, separando possibilidades de fatos. Não apresente especulações como novidades confirmadas.',
+    curiosidade: 'Escolha uma ideia interessante revelada ou sugerida pelo material e explique sua importância de forma original, sem repetir a fala do vídeo.'
+  };
   return [
-    'Você é roteirista profissional para YouTube Shorts sobre GTA V e GTA VI, em português do Brasil.',
-    'Você recebe até quatro quadros JPEG de um trecho e, às vezes, uma transcrição automática que pode conter erros.',
-    'Os quadros são amostras estáticas, não demonstram o movimento entre eles, e não identificam necessariamente qual jogo aparece.',
-    'Não atribua um quadro a GTA V ou GTA VI sem prova visual clara. Não invente comparações, animações, mecânicas, datas nem eventos.',
-    'Se as imagens não sustentarem uma comparação, explique apenas o que é observável, destacando hipóteses como hipóteses.',
-    'Escreva uma narração ORIGINAL com gancho específico, análise própria prudente e pergunta final envolvente.',
-    'Não copie ou reescreva fielmente a narração original. Evite roteiros genéricos, afirmações exageradas e clickbait enganoso.',
-    'O roteiro deve ter aproximadamente ' + Math.max(35, Math.round(duracao * 2.2)) + ' palavras para um vídeo de ' + duracao + ' segundos.',
-    'Retorne JSON com as propriedades: titulo (string), roteiro (string), observacoes (array de strings), alertas (array de strings), revisar (true).',
-    'No campo roteiro, use apenas texto a ser narrado, separado em frases. Não use colchetes, instruções de edição, etiquetas ou markdown.',
-    'Em observacoes, cite instantes dos quadros quando possível. Em alertas, liste o que não pôde ser confirmado.'
-  ].join('\n');
+    'Você é roteirista e editor de YouTube Shorts em português brasileiro. Sua tarefa NÃO é narrar imagens: é identificar UM TEMA editorial interessante que o trecho possa ilustrar e escrever um roteiro original SOBRE ESSE TEMA.',
+    'O material pode ser sobre GTA V, GTA VI ou outro assunto. Não force GTA no roteiro se o corte não tratar claramente disso.',
+    'Receberá quatro quadros espaçados e talvez transcrição automática. Use a transcrição e as imagens SOMENTE para descobrir o assunto, o contexto e possíveis evidências, nunca como roteiro a ser parafraseado.',
+    'ETAPA INTERNA 1: identifique um único tema específico, compreensível e apoiado pelo corte. Escolha uma pergunta, controvérsia, curiosidade ou comparação relevante. Evite títulos e roteiros vagos.',
+    'ETAPA INTERNA 2: defina um ângulo editorial original: por que isso importa, que dúvida levanta, qual conceito ajuda a entender ou que implicações razoáveis pode ter.',
+    'ETAPA INTERNA 3: crie um roteiro AUTÔNOMO e contínuo com gancho forte, desenvolvimento explicativo ou argumentativo e fechamento com pergunta natural para comentários. As imagens servem de ILUSTRAÇÃO, não de pauta cronológica.',
+    'É PROIBIDO fazer descrição quadro a quadro, cronologia da cena, leitura visual literal, repetir falas da transcrição ou escrever "aqui vemos", "repare nesta imagem", "agora aparece", "nesse momento" ou "como mostrado no vídeo".',
+    'Mantenha uma conexão real com o material. Não invente nomes, novidades de jogos, recursos, acontecimentos, datas, confirmações, dados ou detalhes não sustentados. Não atribua quadros a GTA V ou GTA VI sem evidência clara.',
+    'Os quatro quadros não demonstram movimento contínuo; não conclua o que ocorreu entre eles. A transcrição pode estar errada. Se a evidência for fraca, formule uma reflexão ou pergunta geral fundamentada, sem afirmar fatos específicos.',
+    'Tom: curioso, envolvente, claro e natural; conteúdo informativo de criador, não relato de gameplay. Evite clichês e clickbait que prometa algo inexistente.',
+    'Estilo solicitado: ' + estilo + '. ' + (formats[estilo] || formats.curiosidade),
+    'Duração estimada: ' + duracao + ' segundos; aproximadamente ' + Math.max(35, Math.round(duracao * 2.2)) + ' palavras. Não exceda tanto que a narração fique apertada.',
+    'Responda APENAS JSON com propriedades: tema (string curta e específica), titulo (string com gancho), roteiro (string narrável), observacoes (array de evidências que sugerem o tema), alertas (array de pontos não confirmados), revisar (true).',
+    'No campo roteiro, escreva apenas o texto da voz, em frases curtas, sem colchetes, instruções técnicas, texto para editor, timestamps, markdown ou nomes de etapas.',
+    'Nas observacoes, descreva brevemente a base do tema usando quadros/transcrição, mas NÃO transforme essas observações em narração.'
+  ].join('\\n');
 }
 
 export default {
@@ -126,7 +135,7 @@ export default {
             'x-goog-api-key': env.GEMINI_API_KEY
           },
           body: JSON.stringify({
-            systemInstruction: { parts: [{ text: instructions(duracao) }] },
+            systemInstruction: { parts: [{ text: instructions(duracao, estilo) }] },
             contents: [{ role: 'user', parts }],
             generationConfig: {
               responseMimeType: 'application/json',
@@ -169,6 +178,7 @@ export default {
       return respond({ erro: 'O Gemini retornou um roteiro vazio ou incompleto.' }, 502);
     }
     return respond({
+      tema: String(generated.tema || '').slice(0, 140),
       titulo: String(generated.titulo || '').slice(0, 120),
       roteiro: generated.roteiro.trim(),
       observacoes: Array.isArray(generated.observacoes)
