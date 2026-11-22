@@ -61,8 +61,8 @@
 <div class="cut-list" id="cut-list"><p class="empty">Os trechos sugeridos aparecerão aqui.</p></div>
 </section>
 <section aria-labelledby="ia-title" class="av-panel" id="gerador-ia">
-<div class="section-head"><span class="step-number">IA</span><h2 id="ia-title">Gerar roteiro automaticamente a partir do vídeo</h2></div>
-<p class="hint">Escolha um corte acima. O editor envia somente quatro quadros do trecho e a transcrição disponível para um serviço privado conectado ao Gemini. Você gera o MP3 no ElevenLabs depois. A IA não vê todos os movimentos: confira as afirmações antes de publicar.</p>
+<div class="section-head"><span class="step-number">IA</span><h2 id="ia-title">Criar roteiro sobre o tema do corte com IA</h2></div>
+<p class="hint">Escolha um corte acima. O Gemini identifica o assunto central usando quatro quadros e a transcrição disponível, depois escreve uma narração original sobre esse tema — sem descrever cada imagem em sequência. Gere o MP3 no ElevenLabs depois. Revise as afirmações antes de publicar.</p>
 <div class="two-cols">
 <div><label for="ia-endpoint">URL HTTPS do seu Worker de IA</label><input id="ia-endpoint" type="url" value="https://tiny-unit-c547.snak-xit.workers.dev" readonly aria-describedby="ia-endpoint-help"/><p class="hint" id="ia-endpoint-help">Conectado ao seu Worker pessoal. Não coloque chaves de API neste campo.</p></div>
 <div><label for="ia-code">Código de acesso privado</label><input id="ia-code" type="password" placeholder="Código configurado no Worker" autocomplete="off"/></div>
