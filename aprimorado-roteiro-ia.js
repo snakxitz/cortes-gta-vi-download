@@ -90,6 +90,7 @@ export async function gerarRoteiroIA({source, cut, preset, endpoint, accessCode,
   progress(1, 'Roteiro recebido. Confira fatos e cenas antes de narrar.');
   return {
     roteiro:json.roteiro.trim(),
+    tema:String(json.tema || ''),
     titulo:String(json.titulo || ''),
     observacoes:Array.isArray(json.observacoes) ? json.observacoes.map(String).slice(0,6) : [],
     alertas:Array.isArray(json.alertas) ? json.alertas.map(String).slice(0,6) : [],
