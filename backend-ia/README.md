@@ -1,5 +1,29 @@
 # Roteiros de IA para o Modo Aprimorado (v1.2)
 
+## Configuração recomendada: USO PESSOAL (simples e econômica)
+
+**Arquitetura:** GitHub Pages (interface e render local no navegador) → Cloudflare Worker (gateway privado) → API OpenAI (análise de 4 quadros por corte e roteiro original). O MP3 é gerado manualmente no ElevenLabs e depois importado. **Não precisa banco de dados, login, VPS, domínio próprio ou assinatura SaaS.**
+
+**Custo:** cortar, transcrever localmente e exportar não gasta tokens da API OpenAI. Apenas **Gerar roteiro com IA** faz chamada paga; são quatro quadros JPEG reduzidos e transcrição opcional. O valor varia com preço do modelo, imagens e tamanho da resposta. Cloudflare Workers pode ter cota gratuita conforme o plano, sem garantia de gratuidade em qualquer volume. Configure alertas e limites de gastos no provedor, e monitore o consumo.
+
+### Configurar pelo navegador, sem instalar programas no computador
+
+1. Faça uma conta em **Cloudflare → Workers & Pages**, crie um Worker chamado `cortes-gta-vi-roteiros` e abra a edição do código.
+2. Substitua o código inicial pelo conteúdo de [worker.js](./worker.js); **publique o Worker**.
+3. Dentro das configurações de **Variables / Secrets**, crie **dois segredos criptografados**: `OPENAI_API_KEY` (chave de API válida criada na plataforma OpenAI, com faturamento habilitado) e `EDITOR_ACCESS_CODE` (senha exclusiva com ao menos 16 caracteres).
+4. Faça deploy da configuração e copie o endereço HTTPS exibido no painel do Worker (termina em `.workers.dev`).
+5. Abra o editor **Modo Aprimorado**, importe o vídeo, escolha um corte, preencha a **URL do Worker** e o **Código de acesso** e clique em **Gerar roteiro com IA**.
+6. Revise o roteiro produzido a partir dos quadros e da transcrição; copie-o para o ElevenLabs, gere o MP3 e importe-o no editor.
+
+**Não envie chaves ou código de acesso no chat.** As credenciais devem existir apenas nos segredos do Worker; o código pessoal é digitado no formulário do editor quando necessário. Usar o editor em modo pessoal NÃO exige as quatro variáveis do GitHub Actions. O workflow de GitHub Actions é opcional para automatizar novas publicações; no método manual só são necessários os dois segredos dentro da Cloudflare.
+
+**Pré-requisito:** esta branch é de teste. Para abrir o novo formulário no site público, é necessário mesclar a versão testada com `main` após verificar o serviço. Antes da mesclagem, a página pública continua na versão anterior.
+
+**Limite de segurança:** não existe autenticação por usuário nem rate limit no Worker atual. O código de acesso não deve ser compartilhado. O modo pessoal não é apropriado para distribuir a outros usuários sem controles adicionais de abuso/custo.
+
+---
+
+
 Esta branch adiciona **análise visual de 6 quadros do corte selecionado** e geração de roteiro original para comparações, teorias e curiosidades de GTA V e GTA VI. A narração continua sendo gerada manualmente no ElevenLabs e importada em MP3 no editor.
 
 ## Importante
