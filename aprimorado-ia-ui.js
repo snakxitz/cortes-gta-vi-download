@@ -16,7 +16,7 @@ function resetCut(candidate){
   startButton.disabled=!candidate;
   details.replaceChildren();
   status.textContent=candidate
-    ? 'Trecho escolhido. Configure o serviço privado e clique em “Gerar roteiro com IA”.'
+    ? 'Trecho escolhido. Informe o endereço do seu Worker e o código pessoal para gerar o roteiro.'
     : 'Escolha um corte acima para começar.';
 }
 document.addEventListener('aprimorado:corte-selecionado',event=>resetCut(event.detail||null));
