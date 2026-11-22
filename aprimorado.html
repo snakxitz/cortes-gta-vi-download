@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Modo Cortes Aprimorados: edição narrada de comparações, teorias e curiosidades de GTA V e GTA VI.">
+  <title>Cortes GTA VI — Modo Aprimorado</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="aprimorado.css">
+  <script type="module" src="aprimorado.js"></script>
+</head>
+<body class="editor-avancado">
+  <header class="av-header wrap">
+    <a href="./" class="brand">CORTES <span>GTA VI</span></a>
+    <nav aria-label="Navegação"><a href="./#estudio">Cortes automáticos</a><a href="./#biblioteca">Biblioteca</a></nav>
+  </header>
+  <main class="wrap">
+    <section class="av-title">
+      <p class="eyebrow">ESTÚDIO DE CORTES · NOVO MODO</p>
+      <h1>Modo <em>Aprimorado.</em></h1>
+      <p>Seu vídeo de comparação, teoria ou curiosidade com narração do ElevenLabs, cenas selecionáveis e legendas destacadas. Tudo processado no seu navegador.</p>
+      <div class="av-badges"><span>GTA V × GTA VI</span><span>9:16</span><span>MP4</span><span>Sem servidor</span></div>
+    </section>
+    <div class="av-layout">
+      <div class="av-left">
+        <section class="av-panel" aria-labelledby="arquivos-title">
+          <div class="section-head"><span class="step-number">01</span><h2 id="arquivos-title">Importar material</h2></div>
+          <label for="video-file">Vídeo base da comparação (MP4 ou MOV)</label>
+          <input id="video-file" type="file" accept=".mp4,.mov,video/mp4,video/quicktime">
+          <label for="voice-file">Narração do ElevenLabs (MP3, WAV ou M4A) <small>opcional</small></label>
+          <input id="voice-file" type="file" accept=".mp3,.wav,.m4a,audio/*">
+          <label for="music-file">Música de fundo <small>opcional, use áudio licenciado</small></label>
+          <input id="music-file" type="file" accept=".mp3,.wav,.m4a,audio/*">
+          <p class="hint">Use vídeos próprios ou conteúdo para o qual tenha autorização. Alterar vídeos de terceiros não garante direito de uso nem monetização.</p>
+        </section>
+        <section class="av-panel" aria-labelledby="config-title">
+          <div class="section-head"><span class="step-number">02</span><h2 id="config-title">Configurar edição</h2></div>
+          <div class="two-cols">
+            <div><label for="preset">Estilo do conteúdo</label><select id="preset"><option value="comparacao">Comparação GTA V × GTA VI</option><option value="teoria">Teorias e mistérios</option><option value="curiosidade">Curiosidades / Easter eggs</option></select></div>
+            <div><label for="intensity">Movimento</label><select id="intensity"><option value="dinamico">Dinâmico (zoom suave)</option><option value="suave">Suave (sem zoom)</option></select></div>
+            <div><label for="quality">Resolução</label><select id="quality"><option value="720">720 × 1280 · mais rápido</option><option value="1080">1080 × 1920 · alta qualidade</option></select></div>
+            <div><label for="duration">Duração sem narração</label><select id="duration"><option value="20">20 segundos</option><option value="30">30 segundos</option><option value="40" selected>40 segundos</option><option value="60">60 segundos</option><option value="65">65 segundos</option></select></div>
+            <div><label for="source-start">Início do trecho no vídeo (s)</label><input id="source-start" type="number" min="0" step="0.1" value="0"></div>
+            <div><label for="handle">Marca do canal</label><input id="handle" type="text" maxlength="32" placeholder="@seucanal"></div>
+            <div><label for="original-volume">Áudio do vídeo original: <output id="original-label">0%</output></label><input type="range" id="original-volume" min="0" max="100" step="5" value="0"></div>
+            <div><label for="music-volume">Volume da música: <output id="music-label">12%</output></label><input type="range" id="music-volume" min="0" max="50" step="2" value="12"></div>
+          </div>
+          <p class="hint">Com narração, a duração do vídeo segue automaticamente o tempo do áudio. Sem narração, usa a duração escolhida.</p>
+        </section>
+        <section class="av-panel" aria-labelledby="script-title">
+          <div class="section-head"><span class="step-number">03</span><h2 id="script-title">Texto e legendas</h2></div>
+          <label for="script">Cole o texto da narração (uma frase por linha)</label>
+          <textarea id="script" rows="7" placeholder="O que GTA V fazia de diferente do GTA VI?&#10;Repare neste detalhe que quase ninguém percebeu.&#10;Agora olha a comparação lado a lado."></textarea>
+          <p class="hint">Use <code>*palavra*</code> para destaque amarelo e <code>**palavra**</code> para rosa. Você também pode transcrever o arquivo de voz com Whisper. O tempo das frases coladas é estimado; revise a sincronia na prévia.</p>
+          <div class="inline-actions"><button id="transcribe" class="av-button ghost" type="button" disabled>Transcrever MP3 automaticamente</button><button id="prepare" class="av-button" type="button" disabled>Montar cenas</button></div>
+        </section>
+        <section class="av-panel" aria-labelledby="scenes-title">
+          <div class="section-head"><span class="step-number">04</span><h2 id="scenes-title">Revisar cenas</h2></div>
+          <p class="hint">O editor inicia com trechos em sequência. Se alguma cena não corresponder à narração, altere o segundo de origem e o texto. A etiqueta GTA V/GTA VI é escolhida por você; não há reconhecimento visual automático dos jogos.</p>
+          <div id="scenes" class="scene-list"><p class="empty">Importe os arquivos e clique em “Montar cenas”.</p></div>
+        </section>
+        <section class="av-panel" aria-labelledby="export-title">
+          <div class="section-head"><span class="step-number">05</span><h2 id="export-title">Exportar vídeo</h2></div>
+          <p class="hint">O primeiro processamento baixa o FFmpeg para o navegador. Vídeos longos e exportação 1080p podem consumir bastante memória e levar vários minutos. Mantenha a aba aberta.</p>
+          <div class="inline-actions"><button id="render" class="av-button main" type="button" disabled>Gerar MP4 aprimorado</button><button id="cancel" class="av-button ghost" type="button" hidden>Cancelar</button></div>
+          <progress id="progress" max="100" value="0" hidden></progress><p id="status" class="status" role="status" aria-live="polite">Pronto para importar seu material.</p>
+          <div id="result" hidden><h3>Seu vídeo está pronto</h3><video id="rendered-video" controls playsinline></video><a class="av-button main" id="download" download="gta-vi-aprimorado.mp4">Baixar MP4</a></div>
+        </section>
+      </div>
+      <aside class="av-right">
+        <section class="av-panel preview-panel">
+          <h2>Prévia da montagem</h2>
+          <div class="phone"><video id="preview-video" muted playsinline preload="metadata"></video><div id="preview-layer" class="preview-layer"><div id="preview-label" class="game-label">GTA V × GTA VI</div><div id="preview-caption" class="preview-caption">SUA COMPARAÇÃO AQUI</div><div id="preview-brand" class="preview-brand"></div></div><div id="preview-placeholder" class="preview-placeholder"><span>9:16</span><p>Importe um vídeo para visualizar</p></div></div>
+          <audio id="voice-player" preload="metadata"></audio>
+          <div class="player-controls"><button id="play-preview" class="av-button ghost" type="button" disabled>▶ Reproduzir</button><span id="preview-clock">00:00 / 00:00</span></div>
+          <input id="scrubber" type="range" min="0" max="1000" value="0" disabled aria-label="Posição na prévia">
+          <p class="hint">A prévia sincroniza as cenas e a voz de forma aproximada. A composição exportada é processada separadamente pelo FFmpeg.</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+  <footer class="wrap av-footer">Ferramenta independente para criadores · Modo Aprimorado v1 · <a href="./">Voltar ao estúdio original</a></footer>
+</body>
+</html>
