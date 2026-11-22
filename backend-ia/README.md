@@ -4,7 +4,7 @@
 
 **Arquitetura:** GitHub Pages (interface e render local no navegador) → Cloudflare Worker (gateway privado) → Gemini Developer API, nível gratuito (análise de 4 quadros por corte e roteiro original). O MP3 é gerado manualmente no ElevenLabs e depois importado. **Não precisa banco de dados, login, VPS, domínio próprio ou assinatura SaaS.**
 
-**Custo:** cortar, transcrever localmente e exportar não gasta tokens da API Gemini. Apenas **Gerar roteiro com IA** envia dados ao Gemini. Use o **nível gratuito do Gemini Developer API** com o modelo `gemini-3.5-flash-lite`, se disponível no projeto e na região. O nível gratuito está sujeito a cotas e possíveis mudanças: ao atingir a cota, o botão deve exibir erro e não realizar cobrança na configuração gratuita. **Não habilite faturamento** no projeto se sua prioridade absoluta for não pagar. Cloudflare Workers pode ter cota gratuita conforme o plano. Consulte os painéis para confirmar limites e consumo.
+**Custo:** cortar, transcrever localmente e exportar não gasta tokens da API Gemini. Apenas **Gerar roteiro com IA** envia dados ao Gemini. Use o **nível gratuito do Gemini Developer API** com o modelo `gemini-3.5-flash-lite`, se disponível no projeto e na região. O nível gratuito está sujeito a cotas, disponibilidade e mudanças: ao atingir a cota, o serviço retorna um erro; confirme que o projeto não tem faturamento vinculado se não quiser custos. **Não habilite faturamento** no projeto se sua prioridade absoluta for não pagar. Cloudflare Workers pode ter cota gratuita conforme o plano. Consulte os painéis para confirmar limites e consumo.
 
 ### Configurar pelo navegador, sem instalar programas no computador
 
@@ -30,9 +30,9 @@ Esta branch adiciona **análise visual de 4 quadros do corte selecionado** e ger
 
 - O site hospedado no GitHub Pages é estático e **não pode guardar a chave de API**. Por isso, o botão de IA depende de um **Cloudflare Worker** configurado pelo proprietário.
 - O Worker **não está implantado automaticamente** por este pull request. Sem configurá-lo, a função de roteiro IA não funciona; o restante do editor permanece disponível.
-- Captura 6 quadros por corte, com tamanho reduzido. A IA não assiste ao vídeo inteiro e pode confundir versões dos jogos, eventos ou datas. **Revise o roteiro e confira o material antes de publicar.**
+- Captura 4 quadros por corte, com tamanho reduzido. A IA não assiste ao vídeo inteiro e pode confundir versões dos jogos, eventos ou datas. **Revise o roteiro e confira o material antes de publicar.**
 - A transcrição original é apenas referência e pode conter erros. O roteiro solicita comentário original, mas **não garante elegibilidade de monetização** nem concede autorização para reutilizar vídeos de terceiros.
-- O serviço de IA está sujeito a custos do provedor e limites de uso. O código de acesso privado **não substitui autenticação forte e limite de taxa**; use apenas com acesso restrito e monitore a cobrança.
+- O serviço de IA usa a modalidade gratuita do Gemini enquanto a conta estiver qualificada e dentro das cotas. O código de acesso privado **não substitui autenticação forte e limite de taxa**; use apenas com acesso restrito e monitore as cotas.
 
 ## Instalação do serviço privado (Cloudflare Workers)
 
@@ -41,7 +41,7 @@ Esta branch adiciona **análise visual de 4 quadros do corte selecionado** e ger
 3. Instale/execute a ferramenta Wrangler: `npx wrangler login`.
 4. Na pasta `backend-ia`, configure seus segredos (o terminal solicitará os valores):
    - `npx wrangler secret put GEMINI_API_KEY`
-   - `npx wrangler secret put EDITOR_ACCESS_CODE` (código forte e exclusivo, no mínimo 8 caracteres)
+   - `npx wrangler secret put EDITOR_ACCESS_CODE` (código forte e exclusivo, no mínimo 16 caracteres)
 5. Publique: `npx wrangler deploy`.
 6. Copie a URL `https://...workers.dev` fornecida pela Cloudflare.
 7. Abra o **Modo Aprimorado**, importe um vídeo, escolha um corte, informe a URL do Worker e o código de acesso e clique em **Gerar roteiro com IA**.
@@ -79,7 +79,7 @@ No repositório, abra **Settings → Secrets and variables → Actions → New r
 
 - `CLOUDFLARE_API_TOKEN`: token da Cloudflare com permissão Workers Scripts Edit na conta correta.
 - `CLOUDFLARE_ACCOUNT_ID`: ID da conta Cloudflare.
-- `GEMINI_API_KEY`: chave do projeto de API Gemini, com cobrança e limite de gastos configurados.
+- `GEMINI_API_KEY`: chave do projeto de API Gemini, com nível gratuito sem faturamento habilitado.
 - `EDITOR_ACCESS_CODE`: senha exclusiva e forte (mínimo 16 caracteres) para uso pessoal do serviço. Esta senha será digitada no editor ao gerar roteiros.
 
 Depois de mesclar o pull request, abra **Actions → Publicar API de Roteiros GTA VI (Cloudflare) → Run workflow** e acompanhe o resultado. O URL do Worker (`https://...workers.dev`) poderá ser copiado do painel da Cloudflare ou do resultado do workflow. Confira essa URL antes de informar no editor. Você também pode executar o deploy local pelo Wrangler seguindo as etapas anteriores.
