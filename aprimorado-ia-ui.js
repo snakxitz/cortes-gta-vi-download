@@ -13,7 +13,7 @@ let controller=null;
 function resetCut(candidate){
   if(controller)controller.abort();
   cut=candidate;
-  startButton.disabled=!candidate;
+  startButton.disabled=!candidate || Boolean(controller);
   details.replaceChildren();
   status.textContent=candidate
     ? 'Trecho escolhido. Informe o endereço do seu Worker e o código pessoal para gerar o roteiro.'
