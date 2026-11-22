@@ -46,3 +46,18 @@ Esta branch adiciona **análise visual de 6 quadros do corte selecionado** e ger
 - Verificar texto e alertas antes de copiar.
 - Importar MP3, criar cenas e exportar MP4.
 - Conferir o consumo e os logs do Worker em caso de erro.
+
+## Deploy alternativo via GitHub Actions (sem instalar Node.js)
+
+O workflow `.github/workflows/publicar-roteiro-ia.yml` foi adicionado **somente à branch de testes**. O GitHub só mostra e permite executar workflows `workflow_dispatch` depois que o arquivo estiver na **branch padrão (main)**. Portanto, o botão **Run workflow ainda não ficará disponível** antes de aprovar e mesclar o pull request. Não mescle automaticamente: primeiro configure os segredos e revise as alterações.
+
+No repositório, abra **Settings → Secrets and variables → Actions → New repository secret** e cadastre quatro valores **sem revelá-los no chat nem em commits**:
+
+- `CLOUDFLARE_API_TOKEN`: token da Cloudflare com permissão Workers Scripts Edit na conta correta.
+- `CLOUDFLARE_ACCOUNT_ID`: ID da conta Cloudflare.
+- `OPENAI_API_KEY`: chave do projeto de API OpenAI, com cobrança e limite de gastos configurados.
+- `EDITOR_ACCESS_CODE`: senha exclusiva e forte (mínimo 16 caracteres) para uso pessoal do serviço. Esta senha será digitada no editor ao gerar roteiros.
+
+Depois de mesclar o pull request, abra **Actions → Publicar API de Roteiros GTA VI (Cloudflare) → Run workflow** e acompanhe o resultado. O URL do Worker (`https://...workers.dev`) poderá ser copiado do painel da Cloudflare ou do resultado do workflow. Confira essa URL antes de informar no editor. Você também pode executar o deploy local pelo Wrangler seguindo as etapas anteriores.
+
+**Limitação atual:** o código de acesso é compartilhado e não há limite de taxa por identidade/IP. Para disponibilizar a terceiros, implante autenticação e rate limiting no Cloudflare antes de publicar. Proteja seu orçamento e jamais divulgue a URL juntamente com o código.
