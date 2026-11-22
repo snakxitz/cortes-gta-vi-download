@@ -235,8 +235,13 @@ async function runJob(file) {
     const limited = completed < requested
       ? " O vídeo rendeu " + completed + " de " + requested + " cortes de " + seconds + " s sem sobreposição."
       : "";
-    report(100, ready + limited);
-    library.reveal(ready + limited);
+    const includesPlainSpeech = clips.some(clip => clip.signals.every(name => name === "GTA VI"));
+    const review = includesPlainSpeech
+      ? " Revise na biblioteca o gancho e a capa dos trechos sugeridos pela narração."
+      : "";
+    const result = ready + limited + review;
+    report(100, result);
+    library.reveal(result);
   } catch (error) {
     progress.hidden = true;
     if (signal.aborted) {

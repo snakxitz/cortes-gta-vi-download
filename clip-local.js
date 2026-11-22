@@ -85,12 +85,13 @@ function scoreWindow(start, end, parts, first, last, repeats) {
   }
 
   const hasEditorialSignal = hits.slice(1).some(count => count > 0);
-  if (!hook || (!hasEditorialSignal && (speech < 1.5 || words < 4))) return null;
+  if (!hook) return null;
   const topicStrength = Math.max(...topicHits);
+  const sparseSpeechPenalty = !hasEditorialSignal && (speech < 1.5 || words < 4) ? 3 : 0;
   const score = hits.reduce((sum, count, index) =>
     sum + signals[index][1] * Math.min(count, 1) * (1 + 0.2 * Math.max(0, Math.min(count - 1, 3))), 0)
     + opening + closing + Math.min(2, speech / 14)
-    + Math.min(2, words / 32) + cueQuality * 0.25 + Math.min(2, topicStrength * 0.9);
+    + Math.min(2, words / 32) + cueQuality * 0.25 + Math.min(2, topicStrength * 0.9) - sparseSpeechPenalty;
   return { start, end, score, first, last, hook, hits, tokens,
     topic: topicStrength > 0 ? topicHits.indexOf(topicStrength) : -1 };
 }
@@ -171,10 +172,6 @@ export function selectClips(segments, duration, filename, count = 1, seconds = C
   if (!signals[0][2].test(context)) {
     throw new Error("Não encontrei uma referência a GTA VI no nome do arquivo ou na fala.");
   }
-  if (!parts.some(part => part.signals.some(signal => signal > 0))) {
-    throw new Error("A fala não trouxe ganchos, curiosidades, tensão, mistério ou CTA suficientes para sugerir um corte.");
-  }
-
   parts.sort((left, right) => left.start - right.start);
   const partStarts = parts.map(part => part.start);
   let maxEnd = 0;
