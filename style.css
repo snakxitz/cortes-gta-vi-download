@@ -147,6 +147,7 @@ legend { font-weight: 750; margin-bottom: 9px; }
   nav a:not(.button) { display: none; }
   .hero { min-height: 0; }
   .fundo-pagina [data-fundo="neon"] { left: 0; width: 100%; object-fit: contain; object-position: center 62px; }
+  .fundo-pagina [data-fundo="personagens"] { object-fit: contain; object-position: center 35%; }
   .fundo-pagina::after { background: linear-gradient(90deg, #130e1dbf, #130e1d55), linear-gradient(0deg, #130e1d 0%, #130e1dbf 45%, transparent 84%); }
   .fundo-pagina[data-cena="neon"]::after {
     background: linear-gradient(0deg, #130e1d 0%, #130e1d 12%, transparent 36%) 0 62px / 100% 56.25vw no-repeat,
