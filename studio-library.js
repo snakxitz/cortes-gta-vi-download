@@ -88,6 +88,7 @@ export function mountLibrary() {
     get("nome-corte").textContent = entry.title;
     get("info-corte").textContent = formatTime(entry.start) + "–" + formatTime(entry.end)
       + " do original · " + Math.round(entry.end - entry.start) + " s · 9:16";
+    get("aviso-texto-video").hidden = !entry.videoText;
     for (const [key, input] of Object.entries(fields)) {
       input.value = key === "tags" ? entry.tags.join(", ") : entry[key];
     }
@@ -145,7 +146,7 @@ export function mountLibrary() {
       if (rebuildCover) {
         updated.coverFrameTime = frameTime ?? entry.coverFrameTime;
         updated.cover = await generateCover(entry.video, {
-          ...edits, cueTime: entry.cueTime, frameTime: updated.coverFrameTime,
+          ...edits, cueTime: entry.cueTime, frameTime: updated.coverFrameTime, videoText: entry.videoText,
         });
       }
       records.set(updated.id, updated);
@@ -225,16 +226,16 @@ export function mountLibrary() {
   const ready = loadLibrary();
 
   return {
-    async addGenerated({ filename, start, end, video, publication, createdAt, order, cueTime }, signal) {
+    async addGenerated({ filename, start, end, video, publication, createdAt, order, cueTime, videoText }, signal) {
       await ready;
       signal.throwIfAborted();
       const entry = {
         id: crypto.randomUUID(), createdAt, order, filename, start, end, video,
-        ...publication, cueTime, cover: null,
+        ...publication, cueTime, videoText, cover: null,
       };
       let coverError;
       try {
-        entry.cover = await generateCover(video, { ...publication, cueTime, signal });
+        entry.cover = await generateCover(video, { ...publication, cueTime, videoText, signal });
       } catch (error) {
         signal.throwIfAborted();
         coverError = error instanceof Error ? error.message : "Não foi possível gerar a capa.";

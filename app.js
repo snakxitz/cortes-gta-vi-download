@@ -1,7 +1,7 @@
 import { formatTime, selectClips, selectVisualClips } from "./clip-local.js";
 import { generatePublication } from "./publication-local.js";
 import { mountLibrary } from "./studio-library.js";
-import { sampleVisualActivity } from "./cover-local.js";
+import { createClipTextLayer, sampleVisualActivity } from "./cover-local.js";
 const input = document.querySelector("#entrada");
 const video = document.querySelector("#video");
 const downloadOriginal = document.querySelector("#baixar-original");
@@ -9,6 +9,7 @@ const maxBytes = 2 * 1024 * 1024 * 1024;
 const status = document.querySelector("#arquivo");
 const generate = document.querySelector("#gerar-local");
 const language = document.querySelector("#idioma-local");
+const includeVideoText = document.querySelector("#texto-no-video");
 const cancel = document.querySelector("#cancelar-local");
 const progress = document.querySelector("#progresso-local");
 const localStatus = document.querySelector("#estado-local");
@@ -113,7 +114,7 @@ generate.addEventListener("click", () => {
 
 function startJob(message) {
   activeJob = new AbortController();
-  input.disabled = language.disabled = generate.disabled = true;
+  input.disabled = language.disabled = includeVideoText.disabled = generate.disabled = true;
   for (const choice of cutCounts) choice.disabled = true;
   for (const choice of cutLengths) choice.disabled = true;
   cancel.disabled = false;
@@ -128,7 +129,7 @@ function startJob(message) {
 function finishJob() {
   activeJob = undefined;
   cancel.hidden = true;
-  input.disabled = language.disabled = false;
+  input.disabled = language.disabled = includeVideoText.disabled = false;
   generate.disabled = !loadedFile;
   for (const choice of cutCounts) choice.disabled = false;
   for (const choice of cutLengths) choice.disabled = false;
@@ -137,6 +138,7 @@ function finishJob() {
 async function runJob(file) {
   const requested = Number(cutCounts.find(choice => choice.checked).value);
   const seconds = Number(cutLengths.find(choice => choice.checked).value);
+  const videoTextEnabled = includeVideoText.checked;
   const signal = startJob("Preparando o editor de vídeo…");
 
   let videoSession;
@@ -191,7 +193,7 @@ async function runJob(file) {
           const absoluteEnd = Math.min(duration, from + part.end);
           const midpoint = (absoluteStart + absoluteEnd) / 2;
           const spoken = part.text.replace(/\[[^\]]*\]|\([^)]*\)/g, "");
-          if (midpoint >= start && midpoint < end && /[a-z0-9]/i.test(spoken.normalize("NFD"))) {
+          if (midpoint >= start && midpoint < end && /[\p{L}\p{N}]/u.test(spoken)) {
             transcript.push({ start: absoluteStart, end: absoluteEnd, text: part.text });
           }
         }
@@ -203,7 +205,7 @@ async function runJob(file) {
     phase = "selecionar os trechos";
     signal.throwIfAborted();
     const visual = transcript.length === 0;
-    report(65, visual ? "Analisando as cenas do vídeo…" : "Selecionando trechos de " + seconds + " s…");
+    report(65, visual ? "Analisando as cenas do vídeo…" : "Selecionando trechos a partir da narração…");
     const clips = visual
       ? await selectVisualClips(duration, requested, seconds, times => sampleVisualActivity(video, times, signal))
       : selectClips(transcript, duration, file.name, requested, seconds);
@@ -214,14 +216,25 @@ async function runJob(file) {
       signal.throwIfAborted();
       const step = 65 + order * span;
       const label = (order + 1) + " de " + clips.length;
-      const publication = generatePublication(clip);
+      const publication = generatePublication({ ...clip, language: language.value });
       const cueTime = publication.cueTime ?? (clip.hook ? clip.hook.start - clip.start : undefined);
+      const videoText = videoTextEnabled && !visual;
+      let textLayers;
+      if (videoText) {
+        phase = "preparar o gancho e a chamada para ação do corte " + label;
+        report(step, "Criando o gancho e a chamada para ação do corte " + label + "…");
+        const [hook, cta] = await Promise.all([
+          createClipTextLayer(publication.hook, { signal }),
+          createClipTextLayer(publication.cta, { action: true, signal }),
+        ]);
+        textLayers = { hook, cta };
+      }
       phase = "exportar o corte " + label;
       const exporting = "Exportando corte " + label + " em 9:16…";
       report(step, exporting);
       const output = await videoSession.render(clip.start, fraction => {
         report(step + span * .84 * fraction, exporting);
-      }, { seconds });
+      }, { seconds, textLayers });
       signal.throwIfAborted();
       if (order === clips.length - 1) {
         videoSession.close();
@@ -231,7 +244,7 @@ async function runJob(file) {
       report(step + span * .84, "Criando a capa do corte " + label + "…");
       const stored = await library.addGenerated({
         filename: file.name, start: clip.start, end: clip.end, video: output,
-        publication, createdAt, order, cueTime,
+        publication, createdAt, order, cueTime, videoText,
       }, signal);
       completed++;
       if (stored) saved++;
@@ -243,9 +256,7 @@ async function runJob(file) {
       : "";
     const review = visual
       ? " Cortes sem narração. Revise o título, o gancho e a capa na biblioteca."
-      : clips.some(clip => clip.signals.every(name => name === "GTA VI"))
-        ? " Revise na biblioteca o gancho e a capa dos trechos sugeridos pela narração."
-        : "";
+      : " Revise o gancho e a chamada para ação de cada corte na biblioteca.";
     const result = ready + limited + review;
     report(100, result);
     library.reveal(result);

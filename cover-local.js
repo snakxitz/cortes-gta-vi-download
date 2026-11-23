@@ -9,6 +9,8 @@ const SAMPLE_HEIGHT = 128;
 const SAMPLE_POSITIONS = [.04, .19, .36, .53, .71, .89];
 const SAMPLE_BUDGET_MS = 9_000;
 const FRAME_ERROR = "O navegador não conseguiu ler um quadro do corte para gerar a capa.";
+export const CLIP_HOOK_SECONDS = 3.5;
+export const CLIP_CTA_SECONDS = 4;
 
 function waitForFrame(video, events, ready, signal, milliseconds, message) {
   signal?.throwIfAborted();
@@ -195,15 +197,18 @@ export async function sampleVisualActivity(video, times, signal) {
   return activity;
 }
 
-async function selectFrame(context, video, cueTime, frameTime, signal) {
+async function selectFrame(context, video, cueTime, frameTime, videoText, signal) {
   if (Number.isFinite(frameTime)) {
     await seekFrame(video, frameTimeInClip(frameTime, video.duration), signal, 10_000);
     drawFrame(context, video, WIDTH, HEIGHT);
     return;
   }
 
-  const cue = Number.isFinite(cueTime) ? frameTimeInClip(cueTime, video.duration) : undefined;
-  const times = SAMPLE_POSITIONS.map((position) => frameTimeInClip(video.duration * position, video.duration));
+  const first = videoText ? CLIP_HOOK_SECONDS + .15 : 0;
+  const last = videoText ? video.duration - CLIP_CTA_SECONDS - .15 : video.duration;
+  const availableTime = time => frameTimeInClip(Math.max(first, Math.min(time, last)), video.duration);
+  const cue = Number.isFinite(cueTime) ? availableTime(cueTime) : undefined;
+  const times = SAMPLE_POSITIONS.map(position => availableTime(video.duration * position));
   if (cue !== undefined) {
     const closest = times.reduce((best, time, index) =>
       Math.abs(time - cue) < Math.abs(times[best] - cue) ? index : best, 0);
@@ -239,7 +244,7 @@ async function selectFrame(context, video, cueTime, frameTime, signal) {
     sample.width = sample.height = 1;
   }
   if (best === undefined) {
-    await seekFrame(video, 0, signal, 5_000);
+    await seekFrame(video, first, signal, 5_000);
     drawFrame(context, video, WIDTH, HEIGHT);
   }
 }
@@ -293,10 +298,10 @@ function paintCover(context, hook, cta) {
   }
 }
 
-function encodeJpeg(canvas, signal) {
+function encodeCanvas(canvas, type, signal) {
   signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
-    const failure = new Error("O navegador não conseguiu salvar a capa em JPEG.");
+    const failure = new Error("O navegador não conseguiu salvar a imagem.");
     const timer = setTimeout(() => done(failure), 12_000);
     const abort = () => done(signal.reason);
 
@@ -309,14 +314,42 @@ function encodeJpeg(canvas, signal) {
 
     signal?.addEventListener("abort", abort, { once: true });
     try {
-      canvas.toBlob((blob) => done(blob ? null : failure, blob), "image/jpeg", .92);
+      canvas.toBlob((blob) => done(blob ? null : failure, blob), type, .92);
     } catch (error) {
       done(error);
     }
   });
 }
 
-export async function generateCover(videoBlob, { hook, cta, cueTime, frameTime, signal } = {}) {
+export async function createClipTextLayer(text, { action = false, signal } = {}) {
+  const canvas = document.createElement("canvas");
+  canvas.width = WIDTH;
+  canvas.height = 320;
+  try {
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("O navegador não conseguiu preparar o texto do corte.");
+    const width = 830;
+    const padding = 54;
+    const fitted = fitText(context, String(text).trim(), width - padding * 2, 3,
+      action ? 72 : 82, action ? 55 : 58, 900);
+    const lineHeight = Math.ceil(fitted.size * 1.12);
+    const height = fitted.lines.length * lineHeight + 40;
+    context.fillStyle = action ? "#a4f6dc" : "rgba(20,12,31,.92)";
+    drawRoundedRect(context, MARGIN, 0, width, height, 32);
+    context.fillStyle = action ? "#17243a" : "#fff8f2";
+    context.font = fitted.font;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    for (const [index, line] of fitted.lines.entries()) {
+      context.fillText(line, MARGIN + width / 2, 20 + (index + .5) * lineHeight, width - padding * 2);
+    }
+    return await encodeCanvas(canvas, "image/png", signal);
+  } finally {
+    canvas.width = canvas.height = 1;
+  }
+}
+
+export async function generateCover(videoBlob, { hook, cta, cueTime, frameTime, videoText = false, signal } = {}) {
   signal?.throwIfAborted();
   const video = document.createElement("video");
   const canvas = document.createElement("canvas");
@@ -338,9 +371,9 @@ export async function generateCover(videoBlob, { hook, cta, cueTime, frameTime, 
     canvas.height = HEIGHT;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("O navegador não conseguiu abrir o editor de capa.");
-    await selectFrame(context, video, cueTime, frameTime, signal);
+    await selectFrame(context, video, cueTime, frameTime, videoText, signal);
     paintCover(context, hook, cta);
-    return await encodeJpeg(canvas, signal);
+    return await encodeCanvas(canvas, "image/jpeg", signal);
   } finally {
     video.pause();
     video.removeAttribute("src");

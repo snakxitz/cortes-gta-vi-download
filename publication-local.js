@@ -1,5 +1,6 @@
 const BASE_TAGS = ["GTA VI", "GTA 6", "Grand Theft Auto VI", "Cortes GTA VI", "Shorts GTA VI"];
 const DEFAULT_HOOK = "Qual detalhe de GTA VI merece replay?";
+const CLIP_TAGS = ["Corte de vídeo", "Vídeo vertical", "Shorts", "TikTok", "Trecho narrado"];
 const TOPICS = [
   {
     pattern: /\b(?:estrelas? de procurado|nivel de procurado|wanted level|wanted stars)\b/,
@@ -80,6 +81,8 @@ const TOPICS = [
 
 const PT_WORDS = /\b(?:voce|sabia|aquele|aquela|neste|nessa|olha|entao|reparou|porque|como|qual|isso|jogo|jogar|policia|mapa|carro|achei|talvez|acho|sera|fuga|perseguicao)\b/;
 const GTA_NAME = /\b(?:gta\s*(?:6|vi|seis)|grand theft auto\s*(?:6|vi|seis))\b/;
+const GTA_FIVE = /\b(?:gta\s*(?:5|v|cinco)|grand theft auto\s*(?:5|v|cinco))\b/;
+const GTA_VI_CHARACTERS = /\b(?:lucia caminos|jason duval)\b/;
 const GAME_NAME = /\b(?:gta\s*(?:6|vi|seis)|grand theft auto\s*(?:6|vi|seis)|vice city|leonida|lucia caminos|jason duval)\b/;
 const PROMO = /\b(?:se inscrev\w*|deixa o like|segue o perfil|subscribe|drop a like|comment below|let me know|comenta\w*)\b/;
 const COMPARISON = /\b(?:vs|versus|compar\w*|diferent\w*|ao contrario|enquanto|unlike)\b/;
@@ -152,12 +155,135 @@ export function replacementForFilenameHook({ filename, hook }) {
 
 function candidateCues(segments, fallbackText, start, end) {
   const inWindow = (segments ?? []).filter(part => part.start < end && part.end > start && clean(part.text));
-  const sources = inWindow.length ? inWindow : [{ text: fallbackText }];
+  const sources = segments?.length ? inWindow : [{ text: fallbackText }];
   return sources.flatMap(part => clean(part.text).split(/(?<=[.!?])\s+/u).filter(Boolean).map(text => ({
     text,
     folded: normalize(text),
     time: part.start,
   })));
+}
+
+const FILLER_WORDS = /^(?:ainda|agora|alem|assim|aqui|acho|algum\w*|aquele\w*|bastante|cada|certo|coisa\w*|comigo|consegue|conta\w*|deixa\w*|depois|desse\w*|disse|disso|dizer|entao|essa\w*|esta\w*|este\w*|estou|existe|fal(?:a|am|amos|ando|ar|ei|ou)|fazer|feito|gente|hoje|isso|mesmo|motivo|muito|nada|ness[ae]\w*|nosso\w*|olha|outra\w*|pense\w*|pela\w*|pelo\w*|pode\w*|porque|quais|qual|quando|quanto|realmente|sabe\w*|segundo|sobre|tambem|tanto|tenh\w*|tinh\w*|toda\w*|todo\w*|tudo|vamos|voces?|gta|the|this|that|they|have|these|those|last|really|with|from|into|want|talk|here|there|about|some|what|where|which|when|would|could|should|know|think|just|will|your|then|like|much|very|after|before)$/u;
+const FILLER_INTRO = /^(?:[oó]i\b|ol[aá]\b|e a[ií]\b|fala,? galera\b|bem.vindos?\b|no v[ií]deo de hoje\b|hey(?: everybody| guys)?\b|welcome\b)/i;
+const ARTICLE = /^(?:o|a|os|as|um|uma|uns|umas|essa|esse|esta|este|seu|sua|no|na|nos|nas|ao|aos|the|an|this|that|your)$/;
+const PT_ARTICLES = new Map([
+  ["a", "a"], ["na", "a"], ["uma", "a"], ["essa", "a"], ["esta", "a"], ["sua", "a"],
+  ["o", "o"], ["no", "o"], ["ao", "o"], ["um", "o"], ["esse", "o"], ["este", "o"], ["seu", "o"],
+  ["as", "as"], ["nas", "as"], ["umas", "as"], ["os", "os"], ["nos", "os"], ["aos", "os"], ["uns", "os"],
+]);
+const LINK_WORD = /^(?:de|do|da|dos|das|of)$/;
+const MODIFIER = /(?:al|ais|ico|ica|icos|icas|(?:ad|id)[oa]s?|eira|eiras|eir[oa]s|iv[oa]s?|oso|osa|escuro|escura|novo|nova|quente|frio|fria)$/;
+const ENGLISH_MODIFIER = /^(?:manual|digital|remote|dynamic|automatic|spare|red|blue|dry|wooden)$/;
+const ENGLISH_QUESTION = /^(?:what|which|how|why|where|when|would you|did you|do you|can you|could you)\b/;
+
+function wordsIn(text) {
+  return (text.match(/[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*/gu) ?? []).map(value => ({
+    value, key: normalize(value),
+  }));
+}
+
+function isTopicWord({ key }) {
+  return key.length >= 4 && /\p{L}/u.test(key) && !FILLER_WORDS.test(key);
+}
+
+function spokenDetails(words, frequencies) {
+  const details = new Map();
+  for (let index = 0; index < words.length; index++) {
+    const word = words[index];
+    if (!isTopicWord(word)) continue;
+    const previous = words[index - 1];
+    const next = words[index + 1];
+    const followsArticle = ARTICLE.test(previous?.key ?? "");
+    const article = PT_ARTICLES.get(previous?.key);
+    const baseScore = Math.min(frequencies.get(word.key) ?? 0, 4) * 2 + Number(followsArticle) * 3;
+    details.set(word.key, { label: word.value, article, score: baseScore + Math.min(word.key.length, 10) / 10 });
+    const span = [word];
+    if (next && isTopicWord(next) && (MODIFIER.test(next.key) || ENGLISH_MODIFIER.test(word.key))) {
+      span.push(next);
+    }
+    const connector = words[index + span.length];
+    const linked = words[index + span.length + 1];
+    if (connector && LINK_WORD.test(connector.key) && linked && isTopicWord(linked)) {
+      span.push(connector, linked);
+    }
+    if (span.length > 1) {
+      const label = span.map(item => item.value).join(" ");
+      if (label.length <= 30) {
+        details.set(normalize(label), { label, article, score: baseScore + 4 + (span.length - 2) / 2 });
+      }
+    }
+  }
+  return [...details.values()].sort((left, right) => right.score - left.score);
+}
+
+function spokenCta(cue, hook) {
+  const detail = cue?.details[0];
+  if (!detail) return "Comente o que mais chamou sua atenção";
+  const subject = detail.article ? detail.article + " " + detail.label : "“" + detail.label + "”";
+  const standard = "Comente sobre " + subject;
+  const context = cue.folded;
+  let prompt = standard;
+  if (/^(?:como|how|se voce|if you)\b/.test(context)) {
+    prompt = "Dê sua dica sobre " + subject;
+  } else if (/^(?:por que|why)\b/.test(context)) {
+    prompt = "Dê seu palpite sobre " + subject;
+  } else if (/\b(?:test\w*|experimen\w*)\b/.test(context)) {
+    prompt = "Você testaria " + subject + "?";
+  } else if (/\b(?:acabou|faltou|quebrou|falhou|deu errado|broke|failed|ran out)\b/.test(context)) {
+    prompt = "O que você faria com " + subject + "?";
+  }
+  if (prompt.length <= 48 && normalize(hook) !== normalize(prompt)) return prompt;
+  return standard;
+}
+
+function generateSpokenPublication(cues, originalHook, start, gameTitle = "") {
+  const candidates = cues
+    .filter(cue => !FILLER_INTRO.test(cue.text))
+    .flatMap(cue => {
+      if (cue.text.length <= 78) return [cue];
+      const clauses = cue.text.split(/[,;:]\s+/u).filter(clause => {
+        return clause.length >= 18 && clause.length <= 78 && wordsIn(clause).filter(isTopicWord).length >= 2;
+      });
+      return clauses.length ? clauses.map(text => ({ ...cue, text, folded: normalize(text) })) : [cue];
+    })
+    .map(cue => ({ ...cue, words: wordsIn(cue.text) }));
+  const frequencies = new Map();
+  for (const cue of cues) {
+    for (const { key } of wordsIn(cue.text).filter(isTopicWord)) {
+      frequencies.set(key, (frequencies.get(key) ?? 0) + 1);
+    }
+  }
+  const ranked = candidates.map(cue => {
+    const details = spokenDetails(cue.words, frequencies);
+    const question = cue.text.endsWith("?")
+      || QUESTION_START.test(cue.folded) || ENGLISH_QUESTION.test(cue.folded);
+    const fromRankedCue = Boolean(originalHook && originalHook.includes(cue.folded));
+    const score = Math.min(details.length, 5) + (details[0]?.score ?? 0)
+      + 7 * Number(question) + 3 * Number(fromRankedCue)
+      + 3 * Number(cue.text.length <= 78) - 4 * Number(cue.words.length < 3);
+    return { ...cue, details, score };
+  }).filter(cue => cue.details.length).sort((left, right) => right.score - left.score);
+  const cue = ranked[0];
+  const detail = cue?.details[0]?.label;
+  const excerpt = cue ? fit(cue.text, 78) : "";
+  const hook = excerpt ? (excerpt.endsWith("?") ? excerpt : "“" + excerpt + "”")
+    : "Qual trecho da conversa merece replay?";
+  const cta = spokenCta(cue, hook);
+  const name = gameTitle && !GTA_FIVE.test(normalize(hook)) ? gameTitle + " — " : "";
+  const tags = [...new Set([
+    ...(gameTitle ? [gameTitle, "GTA 5", "Grand Theft Auto V"] : []),
+    ...CLIP_TAGS,
+    ...(detail ? [detail] : []),
+  ])];
+  return {
+    title: fit(name + hook, 100),
+    description: (excerpt ? "Na fala deste corte: “" + excerpt + "”" : "Trecho em formato vertical.")
+      + "\n\n" + cta + (/[?!]$/.test(cta) ? "" : "."),
+    hook,
+    cta,
+    tags,
+    ...(Number.isFinite(cue?.time) ? { cueTime: Math.max(0, cue.time - start) } : {}),
+  };
 }
 
 function getTopics(cues, originalHook) {
@@ -269,10 +395,14 @@ export function generatePublication({
   const cues = candidateCues(segments, text, start, end);
   const editorial = cues.filter(cue => !PROMO.test(cue.folded));
   const foldedHook = normalize(originalHook?.text);
+  const around = normalize(editorial.map(cue => cue.text).join(" "));
+  const hasFive = GTA_FIVE.test(around);
+  const hasSix = GTA_NAME.test(around) || (!hasFive && GTA_VI_CHARACTERS.test(around));
+  if (!hasSix) return generateSpokenPublication(editorial, foldedHook, start, hasFive ? "GTA V" : "");
+
   const topics = getTopics(editorial, foldedHook);
   const topic = topics[0];
-  const around = normalize(editorial.map(cue => cue.text).join(" "));
-  const comparing = COMPARISON.test(around) && GTA_NAME.test(around) && /\bgta\s*(?:5|v)\b/.test(around);
+  const comparing = COMPARISON.test(around) && hasFive;
   const moment = sceneMoment(editorial, start);
   const question = sourceQuestion(editorial, topic, foldedHook);
   const quote = question ?? (moment && PT_WORDS.test(moment.cue.folded) ? moment.cue : undefined)
