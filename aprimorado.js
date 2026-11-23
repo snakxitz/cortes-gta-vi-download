@@ -169,19 +169,30 @@ videoPlayer.addEventListener('timeupdate',()=>{
 });
 function selectCandidate(c) {
   watchCandidate.current=undefined;
-  pause();selectedCut=c; document.dispatchEvent(new CustomEvent('aprimorado:corte-selecionado',{detail:{...c}}));
+  pause();selectedCut=c; document.dispatchEvent(new CustomEvent('aprimorado:corte-selecionado',{detail:c}));
   fields.start.value=c.start.toFixed(2);
   fields.duration.value=String(Math.round(c.end-c.start));
   fields.script.value=draftNarration(fields.preset.value,c);
   $('cut-reference').hidden=false;
-  $('cut-reference-time').textContent=`Trecho ${timeLabel(c.start)} a ${timeLabel(c.end)} · ${c.type==='fala'?'transcrição disponível':'análise visual, sem transcrição'}`;
-  $('cut-transcript').textContent=c.excerpt || 'O vídeo não foi transcrito. Assista ao trecho e descreva apenas o que você verificou nas imagens.';
+  showCutTranscript(c);
   scenes=[];drawSceneRows();updateReady();showCandidateCards();
   videoPlayer.controls=true;$('preview-layer').hidden=true;
   videoPlayer.currentTime=c.start;
   notify('Trecho escolhido. Confira a prévia, complete o roteiro abaixo e gere o áudio no ElevenLabs.');
   $('script-title').scrollIntoView({behavior:'smooth',block:'start'});
 }
+function showCutTranscript(c) {
+  const reference = c.excerpt ? 'transcrição disponível' : 'aguardando transcrição';
+  $('cut-reference-time').textContent=`Trecho ${timeLabel(c.start)} a ${timeLabel(c.end)} · ${reference}`;
+  $('cut-transcript').textContent=c.excerpt || 'Clique em “Gerar roteiro com IA” para transcrever as falas deste trecho.';
+}
+document.addEventListener('aprimorado:transcricao-pronta',event=>{
+  const {cut, transcript, language}=event.detail;
+  if(cut!==selectedCut)return;
+  cut.excerpt=transcript;
+  cut.transcriptLanguage=language;
+  showCutTranscript(cut);
+});
 $('abort-analysis').addEventListener('click',()=>{analysisController?.abort();});
 $('analyze-cuts').addEventListener('click',async()=>{
   if(!videoFile || renderBusy)return;
@@ -196,8 +207,10 @@ $('analyze-cuts').addEventListener('click',async()=>{
   setCandidateStatus(method==='fala'?'Carregando Whisper. Isso pode demorar alguns minutos…':'Procurando mudanças entre as cenas…');
   try {
     if(method==='fala'){
-      const transcript=await analyzeVideoSpeech(videoFile,from,until,(p,msg)=>setCandidateStatus(`${Math.round(p*100)}% · ${msg}`),analysisController.signal,$('video-language').value);
-      cutCandidates=suggestSpeechCuts(transcript,from,until,seconds,count);
+      const language=$('video-language').value;
+      const transcript=await analyzeVideoSpeech(videoFile,from,until,(p,msg)=>setCandidateStatus(`${Math.round(p*100)}% · ${msg}`),analysisController.signal,language);
+      cutCandidates=suggestSpeechCuts(transcript,from,until,seconds,count)
+        .map(cut=>({...cut,transcriptLanguage:language}));
       if(!cutCandidates.length)throw new Error('Não foi possível identificar falas suficientes neste intervalo. Escolha análise visual ou mude o início da busca.');
     } else {
       const groups=proposeVisualWindows(from,until,seconds,count);

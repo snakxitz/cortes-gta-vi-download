@@ -10,8 +10,9 @@ export async function analyzeVideoSpeech(file, regionStart, regionEnd, progress 
   try {
     progress(.01, 'Abrindo vídeo para análise de voz…');
     videoSession = await createVideoSession(file, p => progress(.01 + p * .14, 'Abrindo vídeo…'), {signal});
-    if (!videoSession.hasAudio) throw new Error('O vídeo não contém áudio. Escolha “Movimento das imagens”.');
+    if (!videoSession.hasAudio) throw new Error('O vídeo não contém uma faixa de áudio.');
     if (regionEnd > videoSession.duration + .01) throw new Error('Intervalo maior que o vídeo.');
+    regionEnd = Math.min(regionEnd, videoSession.duration);
     progress(.16, 'Carregando modelo Whisper no navegador…');
     speechSession = await createTranscriptionSession(p => progress(.16 + p * .13, 'Preparando Whisper…'), {language,signal});
     const transcript=[];

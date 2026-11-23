@@ -16,7 +16,7 @@ function resetCut(candidate){
   startButton.disabled=!candidate || Boolean(controller);
   details.replaceChildren();
   status.textContent=candidate
-    ? 'Trecho escolhido. Informe o endereço do seu Worker e o código pessoal para gerar o roteiro.'
+    ? 'Trecho escolhido. Informe o código privado para transcrever a fala e gerar o roteiro.'
     : 'Escolha um corte acima para começar.';
 }
 document.addEventListener('aprimorado:corte-selecionado',event=>resetCut(event.detail||null));
@@ -44,26 +44,33 @@ startButton.addEventListener('click',async()=>{
   if(controller)return;
   controller=new AbortController();
   const current=controller;
+  const selected=cut;
+  const language=el('video-language').value;
   startButton.disabled=true;
   el('ia-cancel').hidden=false;
   details.replaceChildren();
   try{
     const result=await gerarRoteiroIA({
-      source,cut,preset:el('preset').value,
+      source,cut:selected,preset:el('preset').value,language,
       endpoint:endpoint.value,accessCode:password.value,
-      signal:current.signal,progress:(p,msg)=>message(Math.round(p*100)+'% · '+msg)
+      signal:current.signal,progress:(p,msg)=>message(Math.round(p*100)+'% · '+msg),
+      onTranscript:transcript=>{
+        document.dispatchEvent(new CustomEvent('aprimorado:transcricao-pronta',{
+          detail:{cut:selected,transcript,language}
+        }));
+      }
     });
     if(current.signal.aborted)return;
     script.value=result.roteiro;
     script.dispatchEvent(new Event('input',{bubbles:true}));
     details.replaceChildren();
     if (result.tema) { const t=document.createElement('p'); const b=document.createElement('strong'); b.textContent='Tema identificado: '; t.append(b,document.createTextNode(result.tema)); details.append(t); }
-    section('Evidências para o tema',result.observacoes);
+    section('O que a transcrição indica',result.observacoes);
     section('Pontos para conferir',result.alertas);
     const reminder=document.createElement('p');
-    reminder.textContent='Roteiro temático gerado a partir dos cortes. Verifique se o assunto e as afirmações correspondem ao material antes de copiar para o ElevenLabs.';
+    reminder.textContent='Roteiro gerado a partir da transcrição. Revise as afirmações antes de copiar para o ElevenLabs.';
     details.append(reminder);
-    message('Roteiro temático pronto. Revise o assunto e use “Copiar roteiro para o ElevenLabs”.');
+    message('Roteiro pronto. Revise o texto e use “Copiar roteiro para o ElevenLabs”.');
   }catch(error){
     message(current.signal.aborted?'Análise cancelada.':'Falha na análise: '+(error?.message||'Erro inesperado.'),!current.signal.aborted);
   }finally{

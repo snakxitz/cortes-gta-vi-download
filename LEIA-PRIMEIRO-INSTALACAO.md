@@ -11,7 +11,7 @@
 3. **Analisar**: escolha **Movimento das imagens** (rápido) ou **Falas do vídeo / Whisper** (mais demorado, precisa de áudio com fala). O sistema sugere 1, 3 ou 5 trechos. A busca examina até 6 minutos no modo visual ou 4 minutos no modo de fala a partir do segundo indicado. Você pode mudar o início e analisar outra parte.
 4. **Pré-visualizar**: clique em **Ver trecho**. Ouça/assista para confirmar o que realmente acontece na cena.
 5. **Escolher**: clique em **Usar este corte**. O sistema preenche um roteiro-base **com lacunas**, que você deve completar com sua análise original. Se você usou o Whisper, a transcrição do corte aparece separadamente como referência. Escolha o idioma (português ou inglês) do áudio original antes de analisar.
-6. **Preparar roteiro**: revise cada frase e preencha os campos entre colchetes. Use **Copiar briefing para criar roteiro com IA** e cole no ChatGPT se quiser um roteiro narrado mais completo e personalizado; depois revise os fatos. Quando o texto estiver pronto, use **Copiar roteiro para o ElevenLabs**.
+6. **Preparar roteiro**: com o Worker de IA configurado, clique em **Gerar roteiro com IA** para transcrever o áudio do corte e usar a transcrição como base. Você também pode preencher o roteiro-base ou copiar o briefing e preparar o texto manualmente. Revise os fatos e use **Copiar roteiro para o ElevenLabs**.
 7. **Gerar narração**: crie o MP3 no ElevenLabs e retorne ao editor.
 8. **Montar e exportar**: importe o áudio, clique em **Montar cenas para prévia**, ajuste as cenas e exporte MP4 720p ou 1080p.
 
@@ -49,7 +49,7 @@ O editor antigo permanece em https://snakxitz.github.io/cortes-gta-vi-download/
 
 ## Limitações relevantes
 
-- **Não gera voz com IA nem escreve um roteiro factual completo automaticamente dentro da página**. O botão de briefing permite solicitar o roteiro a uma IA externa, como o ChatGPT, usando o trecho e a transcrição. Revise o que aparece na imagem e os fatos antes de narrar.
+- O roteiro automático usa a fala transcrita do trecho e depende de um Worker de IA configurado. O áudio da voz é gerado no ElevenLabs e importado depois.
 - O modo de análise por fala transcreve até 4 minutos por busca, pelo Whisper local, podendo demorar e baixar modelos na primeira execução.
 - O modo visual usa amostras de movimento e funciona como sugestão, não como detecção semântica confiável dos melhores momentos.
 - A duração da montagem é ajustada ao áudio do ElevenLabs quando enviado. Se o MP3 for mais longo que o trecho disponível perto do final do original, ajuste o início das cenas ou escolha outra posição.

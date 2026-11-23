@@ -2,7 +2,7 @@
 
 ## Configuração recomendada: USO PESSOAL (simples e econômica)
 
-**Arquitetura:** GitHub Pages (interface e render local no navegador) → Cloudflare Worker (gateway privado) → Gemini Developer API, nível gratuito (análise de 4 quadros por corte e roteiro original). O MP3 é gerado manualmente no ElevenLabs e depois importado. **Não precisa banco de dados, login, VPS, domínio próprio ou assinatura SaaS.**
+**Arquitetura:** o navegador transcreve o áudio do corte com Whisper e envia o texto ao Cloudflare Worker. O Worker solicita o roteiro ao Gemini Developer API. O MP3 é gerado manualmente no ElevenLabs e depois importado.
 
 **Custo:** cortar, transcrever localmente e exportar não gasta tokens da API Gemini. Apenas **Gerar roteiro com IA** envia dados ao Gemini. Use o **nível gratuito do Gemini Developer API** com o modelo `gemini-3.5-flash-lite`, se disponível no projeto e na região. O nível gratuito está sujeito a cotas, disponibilidade e mudanças: ao atingir a cota, o serviço retorna um erro; confirme que o projeto não tem faturamento vinculado se não quiser custos. **Não habilite faturamento** no projeto se sua prioridade absoluta for não pagar. Cloudflare Workers pode ter cota gratuita conforme o plano. Consulte os painéis para confirmar limites e consumo.
 
@@ -13,7 +13,7 @@
 3. Dentro das configurações de **Variables / Secrets**, crie **dois segredos criptografados**: `GEMINI_API_KEY` (chave gratuita criada em https://aistudio.google.com/apikey) e `EDITOR_ACCESS_CODE` (senha exclusiva com ao menos 16 caracteres).
 4. Faça deploy da configuração e copie o endereço HTTPS exibido no painel do Worker (termina em `.workers.dev`).
 5. Abra o editor **Modo Aprimorado**, importe o vídeo, escolha um corte, preencha a **URL do Worker** e o **Código de acesso** e clique em **Gerar roteiro com IA**.
-6. Revise o roteiro produzido a partir dos quadros e da transcrição; copie-o para o ElevenLabs, gere o MP3 e importe-o no editor.
+6. Revise o roteiro produzido a partir da transcrição. Copie-o para o ElevenLabs, gere o MP3 e importe-o no editor.
 
 **Não envie chaves ou código de acesso no chat.** As credenciais devem existir apenas nos segredos do Worker; o código pessoal é digitado no formulário do editor quando necessário. Usar o editor em modo pessoal NÃO exige as quatro variáveis do GitHub Actions. O workflow de GitHub Actions é opcional para automatizar novas publicações; no método manual só são necessários os dois segredos dentro da Cloudflare.
 
@@ -24,13 +24,13 @@
 ---
 
 
-Esta branch adiciona **análise visual de 4 quadros do corte selecionado** e geração de roteiro original para comparações, teorias e curiosidades de GTA V e GTA VI. A narração continua sendo gerada manualmente no ElevenLabs e importada em MP3 no editor.
+Na versão com roteiro por transcrição, selecione um corte com fala. O editor reaproveita a transcrição do trecho se ela já existir no idioma escolhido ou transcreve o áudio desse intervalo antes de chamar o Gemini. Se o editor informar que o Worker ainda usa a análise por imagens, publique o código atualizado no mesmo Worker que aparece no formulário.
 
 ## Importante
 
 - O site hospedado no GitHub Pages é estático e **não pode guardar a chave de API**. Por isso, o botão de IA depende de um **Cloudflare Worker** configurado pelo proprietário.
 - O Worker **não está implantado automaticamente** por este pull request. Sem configurá-lo, a função de roteiro IA não funciona; o restante do editor permanece disponível.
-- Captura 4 quadros por corte, com tamanho reduzido. A IA não assiste ao vídeo inteiro e pode confundir versões dos jogos, eventos ou datas. **Revise o roteiro e confira o material antes de publicar.**
+- O Gemini recebe a transcrição do corte, limitada a 3000 caracteres. Confira possíveis erros de transcrição, nomes dos jogos, eventos e datas antes de publicar.
 - A transcrição original é apenas referência e pode conter erros. O roteiro solicita comentário original, mas **não garante elegibilidade de monetização** nem concede autorização para reutilizar vídeos de terceiros.
 - O serviço de IA usa a modalidade gratuita do Gemini enquanto a conta estiver qualificada e dentro das cotas. O código de acesso privado **não substitui autenticação forte e limite de taxa**; use apenas com acesso restrito e monitore as cotas.
 
@@ -58,7 +58,7 @@ Esta branch adiciona **análise visual de 4 quadros do corte selecionado** e ger
 
 ## Segurança e privacidade
 
-- O vídeo completo não é enviado ao Worker; apenas os quadros amostrados e uma transcrição abreviada.
+- O editor envia ao Worker o texto transcrito, o estilo e a duração do roteiro. O vídeo, o áudio e os quadros permanecem no navegador.
 - Os dados selecionados são enviados ao provedor de IA externo por intermédio do Worker.
 - A chave de API permanece no Worker e nunca na página.
 - O Worker permite solicitações de origem do site `https://snakxitz.github.io`, verifica código, formato e limites de entrada.
@@ -88,4 +88,4 @@ Depois de mesclar o pull request, abra **Actions → Publicar API de Roteiros GT
 
 ## Privacidade no nível gratuito Gemini
 
-No plano gratuito do Gemini Developer API, o Google informa que entradas e saídas podem ser utilizadas para melhorar seus produtos. Evite enviar vídeos ou imagens confidenciais. O editor transfere quatro quadros comprimidos e uma transcrição de referência para o Worker, que os encaminha ao Gemini. Verifique os [preços e termos atuais](https://ai.google.dev/gemini-api/docs/pricing) antes de ativar.
+No plano gratuito do Gemini Developer API, o Google informa que entradas e saídas podem ser utilizadas para melhorar seus produtos. Evite gerar roteiros de trechos que contenham informações confidenciais. Verifique os [preços e termos atuais](https://ai.google.dev/gemini-api/docs/pricing) antes de ativar.
