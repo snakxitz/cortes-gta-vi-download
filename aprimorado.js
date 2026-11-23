@@ -78,6 +78,7 @@ fields.video.addEventListener('change', async () => {
   const f = fields.video.files?.[0];
   resetVideoPreview(); videoFile = undefined; videoDuration = 0; scenes = [];
   cutCandidates = []; selectedCut = undefined; document.dispatchEvent(new CustomEvent('aprimorado:corte-selecionado',{detail:null})); fields.script.value = '';
+  fields.script.setCustomValidity('');
   $('cut-reference').hidden = true; showCandidateCards(); drawSceneRows(); updateReady();
   if (!f) return;
   if (!/\.(mp4|mov)$/i.test(f.name) || f.size === 0 || f.size > maxVideoBytes) {
@@ -173,6 +174,7 @@ function selectCandidate(c) {
   fields.start.value=c.start.toFixed(2);
   fields.duration.value=String(Math.round(c.end-c.start));
   fields.script.value=draftNarration(fields.preset.value,c);
+  fields.script.setCustomValidity('');
   $('cut-reference').hidden=false;
   showCutTranscript(c);
   scenes=[];drawSceneRows();updateReady();showCandidateCards();
@@ -247,14 +249,23 @@ $('copy-brief').addEventListener('click',async()=>{
 });
 $('copy-script').addEventListener('click',async()=>{
   const value=fields.script.value.trim();if(!value)return;
-  if (/\[[^\]]+\]/.test(value)) {
-    notify('Preencha primeiro as instruções entre colchetes com sua análise do que aparece no vídeo.',true);
-    fields.script.focus();return;
-  }
-  try {await navigator.clipboard.writeText(value);notify('Roteiro copiado. Edite as lacunas, gere a narração no ElevenLabs e volte para carregar o MP3.');}
+  if (showDraftInstruction()) return;
+  try {await navigator.clipboard.writeText(value);notify('Roteiro copiado. Gere a narração no ElevenLabs e volte para carregar o MP3.');}
   catch {fields.script.focus();fields.script.select();notify('Selecione o roteiro no campo e copie com Ctrl+C.');}
 });
+function showDraftInstruction() {
+  const match = /\[[^\]\n]+\]/.exec(fields.script.value);
+  if (!match) return false;
+  const message = 'Substitua o texto destacado ou cole o roteiro pronto. Depois, clique em “Montar cenas para prévia”.';
+  fields.script.focus();
+  fields.script.setSelectionRange(match.index, match.index + match[0].length);
+  fields.script.setCustomValidity(message);
+  fields.script.reportValidity();
+  notify(message, true);
+  return true;
+}
 fields.script.addEventListener('input',()=>{
+  fields.script.setCustomValidity('');
   if(scenes.length){pause();scenes=[];drawSceneRows();notify('Roteiro alterado. Clique em “Montar cenas para prévia” novamente.');}
   updateReady();
 });
@@ -339,6 +350,7 @@ function drawSceneRows() {
   list.append(fragment);
 }
 $('prepare').addEventListener('click', () => {
+  if (showDraftInstruction()) return;
   pause();
   try {
     scenes = createTimeline(); drawSceneRows(); updateReady();
@@ -362,6 +374,7 @@ $('transcribe').addEventListener('click', async () => {
     }
     if (fields.script.value.trim() && !window.confirm('Substituir o texto do roteiro pela transcrição do MP3?')) return;
     fields.script.value=fragments.join('\n');
+    fields.script.setCustomValidity('');
     scenes=[];drawSceneRows();updateReady();
     notify('Narração transcrita. Revise o texto, corrija palavras e clique em “Montar cenas”.');
   } catch(e) { notify(e.name === 'AbortError'?'Transcrição cancelada.':e.message,true); }
@@ -452,10 +465,7 @@ $('cancel').addEventListener('click',()=>{
 });
 $('render').addEventListener('click',async()=>{
   if(!scenes.length || renderBusy)return;
-  if (fields.script.value.includes('[') && fields.script.value.includes(']')) {
-    notify('Seu roteiro ainda contém instruções entre colchetes. Preencha o conteúdo real e monte as cenas novamente.',true);
-    return;
-  }
+  if (showDraftInstruction()) return;
   pause();
   const snapshot=scenes.map(s=>({...s}));
   for(const s of snapshot){
