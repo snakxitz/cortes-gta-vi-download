@@ -5,6 +5,7 @@ const MODEL = 'gemini-3.5-flash-lite';
 const MAX_REQUEST_CHARS = 2_300_000;
 const MAX_FRAMES = 4;
 const FRAME_BASE64_LIMIT = 440_000;
+const TEMPORARY_GEMINI_ERRORS = new Set([500, 502, 503, 504]);
 
 function respond(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -35,6 +36,43 @@ function checkFrame(frame) {
     ? /^data:image\/jpeg;base64,([a-zA-Z0-9+/=]+)$/.exec(frame.imagem)
     : null;
   return Boolean(match && match[1].length <= FRAME_BASE64_LIMIT);
+}
+
+async function requestGemini(apiKey, body) {
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + MODEL + ':generateContent';
+  const options = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey
+    },
+    body: JSON.stringify(body)
+  };
+  const send = () => fetch(url, { ...options, signal: AbortSignal.timeout(30_000) });
+  const first = await send();
+  if (!TEMPORARY_GEMINI_ERRORS.has(first.status)) return first;
+  await first.body?.cancel().catch(() => {});
+  await new Promise(resolve => setTimeout(resolve, 750 + Math.random() * 500));
+  return send();
+}
+
+function geminiError(status) {
+  if (status === 429) return respond({
+    erro: 'O Gemini atingiu um limite de uso (HTTP 429). Consulte Uso no Google AI Studio e tente após a renovação.'
+  }, 429);
+  if (status === 401 || status === 403) return respond({
+    erro: 'O Gemini recusou o acesso (HTTP ' + status + '). Confira a chave e as permissões do projeto no Google AI Studio.'
+  }, 502);
+  if (status === 400) return respond({
+    erro: 'O Gemini recusou a solicitação (HTTP 400). Teste outro corte e confira as restrições do projeto no Google AI Studio.'
+  }, 502);
+  if (status === 404) return respond({
+    erro: 'O modelo Gemini não está disponível para esta chave ou região (HTTP 404).'
+  }, 502);
+  if (TEMPORARY_GEMINI_ERRORS.has(status)) return respond({
+    erro: 'O Gemini continua temporariamente indisponível após duas tentativas (HTTP ' + status + '). Tente novamente em alguns minutos.'
+  }, 503);
+  return respond({ erro: 'O Gemini recusou a geração (HTTP ' + status + '). Confira o projeto no Google AI Studio.' }, 502);
 }
 
 function instructions(duracao, estilo) {
@@ -126,40 +164,25 @@ export default {
 
     let provider;
     try {
-      provider = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/' + MODEL + ':generateContent',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': env.GEMINI_API_KEY
-          },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: instructions(duracao, estilo) }] },
-            contents: [{ role: 'user', parts }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.4,
-              maxOutputTokens: 1600
-            }
-          })
+      provider = await requestGemini(env.GEMINI_API_KEY, {
+        systemInstruction: { parts: [{ text: instructions(duracao, estilo) }] },
+        contents: [{ role: 'user', parts }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.4,
+          maxOutputTokens: 1600
         }
-      );
-    } catch {
+      });
+    } catch (error) {
+      if (error?.name === 'TimeoutError') return respond({
+        erro: 'O Gemini demorou demais para responder. Tente novamente em alguns minutos.'
+      }, 504);
       return respond({ erro: 'Não foi possível conectar ao Gemini.' }, 502);
     }
 
     if (!provider.ok) {
-      if (provider.status === 429) return respond({
-        erro: 'Cota gratuita do Gemini atingida. Aguarde a renovação da cota.'
-      }, 429);
-      if (provider.status === 400 || provider.status === 403) return respond({
-        erro: 'Chave do Gemini inválida, sem permissão ou solicitação não aceita. Confira o Google AI Studio.'
-      }, 502);
-      if (provider.status === 404) return respond({
-        erro: 'Modelo Gemini indisponível para esta chave ou região.'
-      }, 502);
-      return respond({ erro: 'O Gemini não conseguiu gerar o roteiro. Tente novamente depois.' }, 502);
+      console.warn('Gemini generateContent', { status: provider.status, model: MODEL });
+      return geminiError(provider.status);
     }
 
     let generated;
@@ -173,7 +196,7 @@ export default {
     } catch {
       return respond({ erro: 'O Gemini não retornou um roteiro válido. Tente novamente.' }, 502);
     }
-    if (typeof generated.roteiro !== 'string'
+    if (typeof generated?.roteiro !== 'string'
       || generated.roteiro.trim().length < 30 || generated.roteiro.length > 4500) {
       return respond({ erro: 'O Gemini retornou um roteiro vazio ou incompleto.' }, 502);
     }
