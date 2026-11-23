@@ -157,6 +157,44 @@ async function seekFrame(video, target, signal, timeout) {
   await waitForFrame(video, ["seeked", "loadeddata"], ready, signal, timeout, FRAME_ERROR);
 }
 
+export async function sampleVisualActivity(video, times, signal) {
+  const activity = new Map();
+  const restoreTime = video.currentTime;
+  const sample = document.createElement("canvas");
+  sample.width = 64;
+  sample.height = 36;
+  const context = sample.getContext("2d", { willReadFrequently: true });
+  if (!context || video.error) return activity;
+  const deadline = performance.now() + SAMPLE_BUDGET_MS;
+  const pixels = () => {
+    context.drawImage(video, 0, 0, sample.width, sample.height);
+    return context.getImageData(0, 0, sample.width, sample.height).data;
+  };
+  try {
+    await waitForFrame(video, ["loadedmetadata"], () => video.readyState >= 1, signal, 2_000, FRAME_ERROR);
+    for (const time of new Set(times)) {
+      if (performance.now() >= deadline) break;
+      await seekFrame(video, frameTimeInClip(time, video.duration), signal, Math.min(1_500, deadline - performance.now()));
+      const before = pixels();
+      await seekFrame(video, frameTimeInClip(time + .8, video.duration), signal, Math.min(1_500, deadline - performance.now()));
+      const after = pixels();
+      let change = 0;
+      for (let i = 0; i < before.length; i += 4) {
+        change += Math.abs(before[i] - after[i]) + Math.abs(before[i + 1] - after[i + 1])
+          + Math.abs(before[i + 2] - after[i + 2]);
+      }
+      activity.set(time, change);
+    }
+  } catch {
+    signal?.throwIfAborted();
+    // A format that only FFmpeg decodes can still be cut at evenly spaced times.
+  } finally {
+    if (!video.error && video.readyState >= 1 && video.currentTime !== restoreTime) video.currentTime = restoreTime;
+    sample.width = sample.height = 1;
+  }
+  return activity;
+}
+
 async function selectFrame(context, video, cueTime, frameTime, signal) {
   if (Number.isFinite(frameTime)) {
     await seekFrame(video, frameTimeInClip(frameTime, video.duration), signal, 10_000);

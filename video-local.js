@@ -1,10 +1,10 @@
 import { FFmpeg } from "./vendor/ffmpeg-0.12.15/index.js";
+import { CLIP_LENGTHS, CLIP_SECONDS } from "./clip-local.js";
 
 const CORE_BASE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
 const MAX_INPUT_SIZE = 2 * 1024 * 1024 * 1024;
 const MAX_MEMORY_COPY = 80 * 1024 * 1024;
 const MAX_DURATION = 2 * 60 * 60;
-const CLIP_DURATION = 65;
 const VIDEO_FILTER = [
   "[0:V:0]scale=ceil(iw*sar/2)*2:ih,setsar=1,split=2[b][f]",
   "[b]scale=270:480:force_original_aspect_ratio=increase:force_divisible_by=2," +
@@ -62,6 +62,7 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
   let busy = false;
   let source;
   let duration;
+  let hasAudio;
 
   function close() {
     if (closed) return;
@@ -126,15 +127,15 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
     }
     const video = metadata.streams?.find(stream =>
       stream.codec_type === "video" && !stream.disposition?.attached_pic);
-    const hasAudio = metadata.streams?.some(stream => stream.codec_type === "audio");
-    if (!video || !hasAudio) {
-      throw new Error("Escolha um vídeo com imagem e uma faixa de áudio.");
+    if (!video) {
+      throw new Error("Escolha um arquivo com uma faixa de vídeo.");
     }
+    hasAudio = metadata.streams.some(stream => stream.codec_type === "audio");
     const lengths = [video.duration, metadata.format?.duration].map(Number)
       .filter(value => Number.isFinite(value) && value > 0);
     duration = Math.min(...lengths);
-    if (!Number.isFinite(duration) || duration < CLIP_DURATION || duration > MAX_DURATION) {
-      throw new Error("Escolha um vídeo com duração entre 65 segundos e 2 horas.");
+    if (!Number.isFinite(duration) || duration < CLIP_LENGTHS[0] || duration > MAX_DURATION) {
+      throw new Error("Escolha um vídeo com duração entre 30 segundos e 2 horas.");
     }
     await ffmpeg.deleteFile("/video.json");
     onProgress(1, "Vídeo pronto");
@@ -191,25 +192,26 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
     });
   }
 
-  async function render(startSeconds, onRenderProgress = () => {}) {
+  async function render(startSeconds, onRenderProgress = () => {}, { seconds = CLIP_SECONDS } = {}) {
     checkOpen();
+    if (!CLIP_LENGTHS.includes(seconds)) throw new Error("Escolha cortes de 30 ou 65 segundos.");
     if (!Number.isFinite(startSeconds) || startSeconds < 0
-        || startSeconds + CLIP_DURATION > duration + 0.000001) {
-      throw new Error("O trecho escolhido precisa conter 65 segundos de vídeo.");
+        || startSeconds + seconds > duration + 0.000001) {
+      throw new Error("O trecho escolhido precisa conter " + seconds + " segundos de vídeo.");
     }
-    const start = Math.min(startSeconds, duration - CLIP_DURATION);
+    const start = Math.min(startSeconds, duration - seconds);
     return exportMedia([
-      "-threads", "1", "-ss", start.toFixed(6), "-i", source, "-t", String(CLIP_DURATION),
-      "-filter_complex_threads", "1", "-filter_complex", VIDEO_FILTER, "-map", "[v]", "-map", "0:a:0",
+      "-threads", "1", "-ss", start.toFixed(6), "-i", source, "-t", String(seconds),
+      "-filter_complex_threads", "1", "-filter_complex", VIDEO_FILTER, "-map", "[v]", "-map", "0:a:0?",
       "-c:v", "libx264", "-threads", "1", "-preset", "ultrafast", "-crf", "23",
       "-fpsmax", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
     ], {
-      output: "/corte.mp4", type: "video/mp4", seconds: CLIP_DURATION, onUpdate: onRenderProgress,
+      output: "/corte.mp4", type: "video/mp4", seconds, onUpdate: onRenderProgress,
       label: "Exportando MP4", done: "MP4 pronto",
       timeout: 600_000, timeoutMessage: "A exportação excedeu o tempo disponível neste dispositivo.",
       failure: "Não foi possível exportar o corte deste vídeo.",
     });
   }
 
-  return { duration, extractAudio, render, close };
+  return { duration, hasAudio, extractAudio, render, close };
 }

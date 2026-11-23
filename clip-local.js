@@ -1,4 +1,5 @@
 export const CLIP_SECONDS = 65;
+export const CLIP_LENGTHS = Object.freeze([30, CLIP_SECONDS]);
 
 const signals = [
   ["GTA VI", 2, /\b(?:gta\s*(?:6|vi|seis)|grand theft auto\s*(?:6|vi|seis)|vice city|leonida|lucia caminos|jason duval)\b/],
@@ -75,7 +76,7 @@ function scoreWindow(start, end, parts, first, last, repeats) {
     if (offset <= 7 && (isHook || hasStory)) {
       opening = Math.max(opening, (3 + Number(isHook) * 2) * (1 - offset / 10) * fraction);
     }
-    if (offset >= 48 && isCTA) closing = Math.max(closing, 2 * fraction);
+    if (offset >= (end - start) * 48 / CLIP_SECONDS && isCTA) closing = Math.max(closing, 2 * fraction);
     const strength = quality + (offset <= 7 ? 2 : 0) - offset * 0.05;
     if (strength > hookStrength) {
       hook = { text: part.text, start: Math.max(start, part.start), end: Math.min(end, part.end) };
@@ -84,12 +85,13 @@ function scoreWindow(start, end, parts, first, last, repeats) {
   }
 
   const hasEditorialSignal = hits.slice(1).some(count => count > 0);
-  if (!hook || (!hasEditorialSignal && (speech < 1.5 || words < 4))) return null;
+  if (!hook) return null;
   const topicStrength = Math.max(...topicHits);
+  const sparseSpeechPenalty = !hasEditorialSignal && (speech < 1.5 || words < 4) ? 3 : 0;
   const score = hits.reduce((sum, count, index) =>
     sum + signals[index][1] * Math.min(count, 1) * (1 + 0.2 * Math.max(0, Math.min(count - 1, 3))), 0)
     + opening + closing + Math.min(2, speech / 14)
-    + Math.min(2, words / 32) + cueQuality * 0.25 + Math.min(2, topicStrength * 0.9);
+    + Math.min(2, words / 32) + cueQuality * 0.25 + Math.min(2, topicStrength * 0.9) - sparseSpeechPenalty;
   return { start, end, score, first, last, hook, hits, tokens,
     topic: topicStrength > 0 ? topicHits.indexOf(topicStrength) : -1 };
 }
@@ -139,9 +141,10 @@ function distinctScore(clip, others) {
   return score;
 }
 
-export function selectClips(segments, duration, filename, count = 1) {
-  if (!Number.isFinite(duration) || duration < CLIP_SECONDS) {
-    throw new Error("Envie um vídeo com pelo menos 65 segundos.");
+export function selectClips(segments, duration, filename, count = 1, seconds = CLIP_SECONDS) {
+  if (!CLIP_LENGTHS.includes(seconds)) throw new Error("Escolha cortes de 30 ou 65 segundos.");
+  if (!Number.isFinite(duration) || duration < seconds) {
+    throw new Error("Envie um vídeo com pelo menos " + seconds + " segundos.");
   }
   const repeats = new Map();
   const parts = [];
@@ -169,15 +172,11 @@ export function selectClips(segments, duration, filename, count = 1) {
   if (!signals[0][2].test(context)) {
     throw new Error("Não encontrei uma referência a GTA VI no nome do arquivo ou na fala.");
   }
-  if (!parts.some(part => part.signals.some(signal => signal > 0))) {
-    throw new Error("A fala não trouxe ganchos, curiosidades, tensão, mistério ou CTA suficientes para sugerir um corte.");
-  }
-
   parts.sort((left, right) => left.start - right.start);
   const partStarts = parts.map(part => part.start);
   let maxEnd = 0;
   const partEnds = parts.map(part => (maxEnd = Math.max(maxEnd, part.end)));
-  const latest = duration - CLIP_SECONDS;
+  const latest = duration - seconds;
   const starts = new Set([0, latest]);
   for (let start = 0; start <= latest; start += 5) {
     starts.add(start);
@@ -190,13 +189,13 @@ export function selectClips(segments, duration, filename, count = 1) {
   }
   const candidates = [];
   for (const start of [...starts].sort((left, right) => left - right)) {
-    const end = start + CLIP_SECONDS;
+    const end = start + seconds;
     const first = lowerBound(partEnds, start, true);
     const last = lowerBound(partStarts, end);
     const candidate = scoreWindow(start, end, parts, first, last, repeats);
     if (candidate) candidates.push(candidate);
   }
-  const limit = Math.min(5, Math.max(1, Math.floor(Number(count)) || 1), Math.floor(duration / CLIP_SECONDS));
+  const limit = Math.min(5, Math.max(1, Math.floor(Number(count)) || 1), Math.floor(duration / seconds));
   const chosen = strongestSchedule(candidates, limit);
 
   // Keep the count and non-overlap while preferring similarly strong, different subjects.
@@ -226,4 +225,24 @@ export function selectClips(segments, duration, filename, count = 1) {
 export function formatTime(seconds) {
   const whole = Math.floor(seconds);
   return Math.floor(whole / 60) + ":" + String(whole % 60).padStart(2, "0");
+}
+
+export async function selectVisualClips(duration, count, seconds, rateActivity) {
+  const limit = Math.min(count, Math.floor(duration / seconds));
+  const sectionLength = duration / limit;
+  const slack = sectionLength - seconds;
+  const choices = Array.from({length: limit}, (_, index) =>
+    [...new Set([.5, 0, 1].map(fraction => index * sectionLength + slack * fraction))]);
+  const times = [];
+  for (let option = 0; option < 3; option++) {
+    for (const starts of choices) {
+      if (starts[option] !== undefined) times.push(starts[option] + seconds / 3);
+    }
+  }
+  const activity = times.length > limit ? await rateActivity(times) : new Map();
+  return choices.map(starts => {
+    const start = starts.reduce((best, next) =>
+      (activity.get(next + seconds / 3) ?? 0) > (activity.get(best + seconds / 3) ?? 0) ? next : best);
+    return { start, end: start + seconds, visual: true };
+  });
 }
