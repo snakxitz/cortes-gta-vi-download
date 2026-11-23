@@ -9,8 +9,6 @@ const SAMPLE_HEIGHT = 128;
 const SAMPLE_POSITIONS = [.04, .19, .36, .53, .71, .89];
 const SAMPLE_BUDGET_MS = 9_000;
 const FRAME_ERROR = "O navegador não conseguiu ler um quadro do corte para gerar a capa.";
-export const CLIP_HOOK_SECONDS = 3.5;
-export const CLIP_CTA_SECONDS = 4;
 
 function waitForFrame(video, events, ready, signal, milliseconds, message) {
   signal?.throwIfAborted();
@@ -39,9 +37,11 @@ function waitForFrame(video, events, ready, signal, milliseconds, message) {
   });
 }
 
-function coverText(value) {
+function coverText(value, fallback) {
   const clean = String(value ?? "").trim().replace(/\s+/gu, " ").toLocaleUpperCase("pt-BR");
-  return Array.from(clean).slice(0, 180).join("").replace(/\b(?:VICE CITY|GTA VI|GTA 6)\b/g, (name) => name.replace(" ", "\u00a0"));
+  return clean
+    ? Array.from(clean).slice(0, 180).join("").replace(/\b(?:VICE CITY|GTA VI|GTA 6)\b/g, (name) => name.replace(" ", "\u00a0"))
+    : fallback;
 }
 
 function wrapText(context, value, width) {
@@ -157,56 +157,15 @@ async function seekFrame(video, target, signal, timeout) {
   await waitForFrame(video, ["seeked", "loadeddata"], ready, signal, timeout, FRAME_ERROR);
 }
 
-export async function sampleVisualActivity(video, times, signal) {
-  const activity = new Map();
-  const restoreTime = video.currentTime;
-  const sample = document.createElement("canvas");
-  sample.width = 64;
-  sample.height = 36;
-  const context = sample.getContext("2d", { willReadFrequently: true });
-  if (!context || video.error) return activity;
-  const deadline = performance.now() + SAMPLE_BUDGET_MS;
-  const pixels = () => {
-    context.drawImage(video, 0, 0, sample.width, sample.height);
-    return context.getImageData(0, 0, sample.width, sample.height).data;
-  };
-  try {
-    await waitForFrame(video, ["loadedmetadata"], () => video.readyState >= 1, signal, 2_000, FRAME_ERROR);
-    for (const time of new Set(times)) {
-      if (performance.now() >= deadline) break;
-      await seekFrame(video, frameTimeInClip(time, video.duration), signal, Math.min(1_500, deadline - performance.now()));
-      const before = pixels();
-      await seekFrame(video, frameTimeInClip(time + .8, video.duration), signal, Math.min(1_500, deadline - performance.now()));
-      const after = pixels();
-      let change = 0;
-      for (let i = 0; i < before.length; i += 4) {
-        change += Math.abs(before[i] - after[i]) + Math.abs(before[i + 1] - after[i + 1])
-          + Math.abs(before[i + 2] - after[i + 2]);
-      }
-      activity.set(time, change);
-    }
-  } catch {
-    signal?.throwIfAborted();
-    // A format that only FFmpeg decodes can still be cut at evenly spaced times.
-  } finally {
-    if (!video.error && video.readyState >= 1 && video.currentTime !== restoreTime) video.currentTime = restoreTime;
-    sample.width = sample.height = 1;
-  }
-  return activity;
-}
-
-async function selectFrame(context, video, cueTime, frameTime, videoText, signal) {
+async function selectFrame(context, video, cueTime, frameTime, signal) {
   if (Number.isFinite(frameTime)) {
     await seekFrame(video, frameTimeInClip(frameTime, video.duration), signal, 10_000);
     drawFrame(context, video, WIDTH, HEIGHT);
     return;
   }
 
-  const first = videoText ? CLIP_HOOK_SECONDS + .15 : 0;
-  const last = videoText ? video.duration - CLIP_CTA_SECONDS - .15 : video.duration;
-  const availableTime = time => frameTimeInClip(Math.max(first, Math.min(time, last)), video.duration);
-  const cue = Number.isFinite(cueTime) ? availableTime(cueTime) : undefined;
-  const times = SAMPLE_POSITIONS.map(position => availableTime(video.duration * position));
+  const cue = Number.isFinite(cueTime) ? frameTimeInClip(cueTime, video.duration) : undefined;
+  const times = SAMPLE_POSITIONS.map((position) => frameTimeInClip(video.duration * position, video.duration));
   if (cue !== undefined) {
     const closest = times.reduce((best, time, index) =>
       Math.abs(time - cue) < Math.abs(times[best] - cue) ? index : best, 0);
@@ -242,16 +201,12 @@ async function selectFrame(context, video, cueTime, frameTime, videoText, signal
     sample.width = sample.height = 1;
   }
   if (best === undefined) {
-    await seekFrame(video, first, signal, 5_000);
+    await seekFrame(video, 0, signal, 5_000);
     drawFrame(context, video, WIDTH, HEIGHT);
   }
 }
 
 function paintCover(context, hook, cta) {
-  const heading = coverText(hook);
-  const actionText = coverText(cta);
-  if (!heading && !actionText) return;
-
   const shade = context.createLinearGradient(0, 0, 0, HEIGHT);
   shade.addColorStop(0, "rgba(25,12,35,.12)");
   shade.addColorStop(.49, "rgba(25,12,35,0)");
@@ -259,52 +214,51 @@ function paintCover(context, hook, cta) {
   shade.addColorStop(1, "rgba(16,10,24,.98)");
   context.fillStyle = shade;
   context.fillRect(0, 0, WIDTH, HEIGHT);
-  context.textBaseline = "top";
 
-  let titleBottom = 1685;
-  if (actionText) {
-    const action = fitText(context, actionText, TEXT_WIDTH - 72, 2, 42, 35, 800);
-    const pillWidth = Math.ceil(Math.max(...action.lines.map((line) => context.measureText(line).width))) + 72;
-    const actionSpacing = action.size + 7;
-    const pillHeight = 40 + actionSpacing * action.lines.length;
-    const pillTop = titleBottom - pillHeight;
-    const pill = context.createLinearGradient(MARGIN, pillTop, MARGIN + pillWidth, pillTop);
-    pill.addColorStop(0, "#ffca9f");
-    pill.addColorStop(1, "#ffacaa");
-    context.fillStyle = pill;
-    drawRoundedRect(context, MARGIN, pillTop, pillWidth, pillHeight, 27);
-    context.fillStyle = "#231329";
-    for (const [index, line] of action.lines.entries()) {
-      context.fillText(line, MARGIN + 36, pillTop + 21 + index * actionSpacing, pillWidth - 72);
-    }
-    titleBottom = pillTop - 36;
+  const heading = coverText(hook, "GTA VI");
+  const title = fitText(context, heading, TEXT_WIDTH, heading.length > 62 ? 4 : 3, 114, 70, 900, HOOK_FONT);
+  const action = fitText(context, coverText(cta, "COMENTA SUA TEORIA"), TEXT_WIDTH - 72, 2, 42, 35, 800);
+  const pillWidth = Math.ceil(Math.max(...action.lines.map((line) => context.measureText(line).width))) + 72;
+  const actionSpacing = action.size + 7;
+  const pillHeight = 40 + actionSpacing * action.lines.length;
+  const pillTop = 1685 - pillHeight;
+  const titleSpacing = title.size * 1.06;
+  const titleTop = pillTop - 36 - titleSpacing * title.lines.length;
+
+  const accent = context.createLinearGradient(MARGIN, 0, MARGIN + 205, 0);
+  accent.addColorStop(0, "#ffc195");
+  accent.addColorStop(1, "#ed69bd");
+  context.fillStyle = accent;
+  context.fillRect(MARGIN, titleTop - 31, 205, 9);
+
+  context.font = title.font;
+  context.textBaseline = "top";
+  context.lineJoin = "round";
+  context.lineWidth = Math.max(4, Math.round(title.size * .075));
+  context.strokeStyle = "rgba(19,9,26,.68)";
+  for (const [index, line] of title.lines.entries()) {
+    const y = titleTop + index * titleSpacing;
+    context.fillStyle = index === title.lines.length - 1 ? "#ffbc9b" : "#fff8f2";
+    context.strokeText(line, MARGIN, y, TEXT_WIDTH);
+    context.fillText(line, MARGIN, y, TEXT_WIDTH);
   }
 
-  if (heading) {
-    const title = fitText(context, heading, TEXT_WIDTH, heading.length > 62 ? 4 : 3, 114, 70, 900, HOOK_FONT);
-    const titleSpacing = title.size * 1.06;
-    const titleTop = titleBottom - titleSpacing * title.lines.length;
-    const accent = context.createLinearGradient(MARGIN, 0, MARGIN + 205, 0);
-    accent.addColorStop(0, "#ffc195");
-    accent.addColorStop(1, "#ed69bd");
-    context.fillStyle = accent;
-    context.fillRect(MARGIN, titleTop - 31, 205, 9);
-    context.lineJoin = "round";
-    context.lineWidth = Math.max(4, Math.round(title.size * .075));
-    context.strokeStyle = "rgba(19,9,26,.68)";
-    for (const [index, line] of title.lines.entries()) {
-      const y = titleTop + index * titleSpacing;
-      context.fillStyle = index === title.lines.length - 1 ? "#ffbc9b" : "#fff8f2";
-      context.strokeText(line, MARGIN, y, TEXT_WIDTH);
-      context.fillText(line, MARGIN, y, TEXT_WIDTH);
-    }
+  const pill = context.createLinearGradient(MARGIN, pillTop, MARGIN + pillWidth, pillTop);
+  pill.addColorStop(0, "#ffca9f");
+  pill.addColorStop(1, "#ffacaa");
+  context.fillStyle = pill;
+  drawRoundedRect(context, MARGIN, pillTop, pillWidth, pillHeight, 27);
+  context.font = action.font;
+  context.fillStyle = "#231329";
+  for (const [index, line] of action.lines.entries()) {
+    context.fillText(line, MARGIN + 36, pillTop + 21 + index * actionSpacing, pillWidth - 72);
   }
 }
 
-function encodeCanvas(canvas, type, signal) {
+function encodeJpeg(canvas, signal) {
   signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
-    const failure = new Error("O navegador não conseguiu salvar a imagem.");
+    const failure = new Error("O navegador não conseguiu salvar a capa em JPEG.");
     const timer = setTimeout(() => done(failure), 12_000);
     const abort = () => done(signal.reason);
 
@@ -317,44 +271,14 @@ function encodeCanvas(canvas, type, signal) {
 
     signal?.addEventListener("abort", abort, { once: true });
     try {
-      canvas.toBlob((blob) => done(blob ? null : failure, blob), type, .92);
+      canvas.toBlob((blob) => done(blob ? null : failure, blob), "image/jpeg", .92);
     } catch (error) {
       done(error);
     }
   });
 }
 
-export async function createClipTextLayer(text, { action = false, signal } = {}) {
-  const canvas = document.createElement("canvas");
-  canvas.width = WIDTH;
-  canvas.height = 320;
-  try {
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("O navegador não conseguiu preparar o texto do corte.");
-    const width = 830;
-    const padding = 54;
-    const fitted = fitText(context, String(text).trim(), width - padding * 2, 3,
-      action ? 72 : 82, action ? 55 : 58, 900);
-    const lineHeight = Math.ceil(fitted.size * 1.12);
-    const height = fitted.lines.length * lineHeight + 40;
-    context.fillStyle = action ? "#a4f6dc" : "rgba(20,12,31,.92)";
-    drawRoundedRect(context, MARGIN, 0, width, height, 32);
-    context.fillStyle = action ? "#17243a" : "#fff8f2";
-    context.font = fitted.font;
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    for (const [index, line] of fitted.lines.entries()) {
-      context.fillText(line, MARGIN + width / 2, 20 + (index + .5) * lineHeight, width - padding * 2);
-    }
-    return await encodeCanvas(canvas, "image/png", signal);
-  } finally {
-    canvas.width = canvas.height = 1;
-  }
-}
-
-export async function generateCover(videoBlob, {
-  hook = "GTA VI", cta = "COMENTA SUA TEORIA", cueTime, frameTime, videoText = false, signal,
-} = {}) {
+export async function generateCover(videoBlob, { hook, cta, cueTime, frameTime, signal } = {}) {
   signal?.throwIfAborted();
   const video = document.createElement("video");
   const canvas = document.createElement("canvas");
@@ -376,9 +300,9 @@ export async function generateCover(videoBlob, {
     canvas.height = HEIGHT;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("O navegador não conseguiu abrir o editor de capa.");
-    await selectFrame(context, video, cueTime, frameTime, videoText, signal);
+    await selectFrame(context, video, cueTime, frameTime, signal);
     paintCover(context, hook, cta);
-    return await encodeCanvas(canvas, "image/jpeg", signal);
+    return await encodeJpeg(canvas, signal);
   } finally {
     video.pause();
     video.removeAttribute("src");

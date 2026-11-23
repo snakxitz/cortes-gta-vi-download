@@ -71,11 +71,11 @@ export async function saveClip(entry) {
   }
   const {
     id, createdAt, order, video, cover = null, title, description, hook, cta, tags,
-    start, end, filename, cueTime, coverFrameTime, videoText, screenText,
+    start, end, filename, cueTime, coverFrameTime,
   } = entry;
   const record = {
     id, createdAt, order, video, cover, title, description, hook, cta, tags,
-    start, end, filename, cueTime, coverFrameTime, videoText, screenText,
+    start, end, filename, cueTime, coverFrameTime,
   };
   await useLibrary("readwrite", store => store.put(record));
   return record;
