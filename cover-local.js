@@ -39,11 +39,9 @@ function waitForFrame(video, events, ready, signal, milliseconds, message) {
   });
 }
 
-function coverText(value, fallback) {
+function coverText(value) {
   const clean = String(value ?? "").trim().replace(/\s+/gu, " ").toLocaleUpperCase("pt-BR");
-  return clean
-    ? Array.from(clean).slice(0, 180).join("").replace(/\b(?:VICE CITY|GTA VI|GTA 6)\b/g, (name) => name.replace(" ", "\u00a0"))
-    : fallback;
+  return Array.from(clean).slice(0, 180).join("").replace(/\b(?:VICE CITY|GTA VI|GTA 6)\b/g, (name) => name.replace(" ", "\u00a0"));
 }
 
 function wrapText(context, value, width) {
@@ -250,6 +248,10 @@ async function selectFrame(context, video, cueTime, frameTime, videoText, signal
 }
 
 function paintCover(context, hook, cta) {
+  const heading = coverText(hook);
+  const actionText = coverText(cta);
+  if (!heading && !actionText) return;
+
   const shade = context.createLinearGradient(0, 0, 0, HEIGHT);
   shade.addColorStop(0, "rgba(25,12,35,.12)");
   shade.addColorStop(.49, "rgba(25,12,35,0)");
@@ -257,44 +259,45 @@ function paintCover(context, hook, cta) {
   shade.addColorStop(1, "rgba(16,10,24,.98)");
   context.fillStyle = shade;
   context.fillRect(0, 0, WIDTH, HEIGHT);
-
-  const heading = coverText(hook, "GTA VI");
-  const title = fitText(context, heading, TEXT_WIDTH, heading.length > 62 ? 4 : 3, 114, 70, 900, HOOK_FONT);
-  const action = fitText(context, coverText(cta, "COMENTA SUA TEORIA"), TEXT_WIDTH - 72, 2, 42, 35, 800);
-  const pillWidth = Math.ceil(Math.max(...action.lines.map((line) => context.measureText(line).width))) + 72;
-  const actionSpacing = action.size + 7;
-  const pillHeight = 40 + actionSpacing * action.lines.length;
-  const pillTop = 1685 - pillHeight;
-  const titleSpacing = title.size * 1.06;
-  const titleTop = pillTop - 36 - titleSpacing * title.lines.length;
-
-  const accent = context.createLinearGradient(MARGIN, 0, MARGIN + 205, 0);
-  accent.addColorStop(0, "#ffc195");
-  accent.addColorStop(1, "#ed69bd");
-  context.fillStyle = accent;
-  context.fillRect(MARGIN, titleTop - 31, 205, 9);
-
-  context.font = title.font;
   context.textBaseline = "top";
-  context.lineJoin = "round";
-  context.lineWidth = Math.max(4, Math.round(title.size * .075));
-  context.strokeStyle = "rgba(19,9,26,.68)";
-  for (const [index, line] of title.lines.entries()) {
-    const y = titleTop + index * titleSpacing;
-    context.fillStyle = index === title.lines.length - 1 ? "#ffbc9b" : "#fff8f2";
-    context.strokeText(line, MARGIN, y, TEXT_WIDTH);
-    context.fillText(line, MARGIN, y, TEXT_WIDTH);
+
+  let titleBottom = 1685;
+  if (actionText) {
+    const action = fitText(context, actionText, TEXT_WIDTH - 72, 2, 42, 35, 800);
+    const pillWidth = Math.ceil(Math.max(...action.lines.map((line) => context.measureText(line).width))) + 72;
+    const actionSpacing = action.size + 7;
+    const pillHeight = 40 + actionSpacing * action.lines.length;
+    const pillTop = titleBottom - pillHeight;
+    const pill = context.createLinearGradient(MARGIN, pillTop, MARGIN + pillWidth, pillTop);
+    pill.addColorStop(0, "#ffca9f");
+    pill.addColorStop(1, "#ffacaa");
+    context.fillStyle = pill;
+    drawRoundedRect(context, MARGIN, pillTop, pillWidth, pillHeight, 27);
+    context.fillStyle = "#231329";
+    for (const [index, line] of action.lines.entries()) {
+      context.fillText(line, MARGIN + 36, pillTop + 21 + index * actionSpacing, pillWidth - 72);
+    }
+    titleBottom = pillTop - 36;
   }
 
-  const pill = context.createLinearGradient(MARGIN, pillTop, MARGIN + pillWidth, pillTop);
-  pill.addColorStop(0, "#ffca9f");
-  pill.addColorStop(1, "#ffacaa");
-  context.fillStyle = pill;
-  drawRoundedRect(context, MARGIN, pillTop, pillWidth, pillHeight, 27);
-  context.font = action.font;
-  context.fillStyle = "#231329";
-  for (const [index, line] of action.lines.entries()) {
-    context.fillText(line, MARGIN + 36, pillTop + 21 + index * actionSpacing, pillWidth - 72);
+  if (heading) {
+    const title = fitText(context, heading, TEXT_WIDTH, heading.length > 62 ? 4 : 3, 114, 70, 900, HOOK_FONT);
+    const titleSpacing = title.size * 1.06;
+    const titleTop = titleBottom - titleSpacing * title.lines.length;
+    const accent = context.createLinearGradient(MARGIN, 0, MARGIN + 205, 0);
+    accent.addColorStop(0, "#ffc195");
+    accent.addColorStop(1, "#ed69bd");
+    context.fillStyle = accent;
+    context.fillRect(MARGIN, titleTop - 31, 205, 9);
+    context.lineJoin = "round";
+    context.lineWidth = Math.max(4, Math.round(title.size * .075));
+    context.strokeStyle = "rgba(19,9,26,.68)";
+    for (const [index, line] of title.lines.entries()) {
+      const y = titleTop + index * titleSpacing;
+      context.fillStyle = index === title.lines.length - 1 ? "#ffbc9b" : "#fff8f2";
+      context.strokeText(line, MARGIN, y, TEXT_WIDTH);
+      context.fillText(line, MARGIN, y, TEXT_WIDTH);
+    }
   }
 }
 
@@ -349,7 +352,9 @@ export async function createClipTextLayer(text, { action = false, signal } = {})
   }
 }
 
-export async function generateCover(videoBlob, { hook, cta, cueTime, frameTime, videoText = false, signal } = {}) {
+export async function generateCover(videoBlob, {
+  hook = "GTA VI", cta = "COMENTA SUA TEORIA", cueTime, frameTime, videoText = false, signal,
+} = {}) {
   signal?.throwIfAborted();
   const video = document.createElement("video");
   const canvas = document.createElement("canvas");

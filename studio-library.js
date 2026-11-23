@@ -1,5 +1,5 @@
 import { formatTime } from "./clip-local.js";
-import { generateCover } from "./cover-local.js";
+import { CLIP_CTA_SECONDS, CLIP_HOOK_SECONDS, generateCover } from "./cover-local.js";
 import { replacementForFilenameHook } from "./publication-local.js";
 import { deleteClip, listClips, saveClip } from "./library-local.js";
 
@@ -9,20 +9,65 @@ export function mountLibrary() {
   const stored = new Set();
   const list = get("lista-cortes");
   const form = get("publicacao-form");
-  const actions = [...form.querySelectorAll("button"), get("excluir-corte")];
+  const screenForm = get("texto-video-form");
+  const screenFields = { opening: get("texto-abertura"), ending: get("texto-encerramento") };
+  const screenFeedback = get("estado-texto-video");
+  const restoreInput = get("original-texto-video");
+  const actions = [...form.querySelectorAll("button"), ...screenForm.querySelectorAll("button, input"), get("excluir-corte")];
   const useFrame = get("usar-quadro");
   const player = get("video-corte");
+  const downloadVideo = get("baixar-local");
+  const downloadStatus = get("estado-download-video");
   const coverImage = get("capa-corte");
   const libraryStatus = get("estado-biblioteca");
   const feedback = get("estado-publicacao");
   const fields = {
     title: get("titulo-corte"), description: get("descricao-corte"),
-    tags: get("tags-corte"), hook: get("hook-corte"), cta: get("cta-corte"),
+    tags: get("tags-corte"),
   };
+  const coverFields = { hook: get("hook-corte"), cta: get("cta-corte") };
   let selectedId;
   let videoUrl;
   let coverUrl;
+  let preparedUrl;
   let editing = false;
+
+  function discardPreparedDownload() {
+    if (!preparedUrl) return;
+    URL.revokeObjectURL(preparedUrl);
+    preparedUrl = undefined;
+    if (videoUrl) downloadVideo.href = videoUrl;
+  }
+
+  function screenValues() {
+    return {
+      opening: screenFields.opening.value.trim(),
+      ending: screenFields.ending.value.trim(),
+    };
+  }
+
+  function showScreenText() {
+    const entry = records.get(selectedId);
+    const text = screenValues();
+    const time = player.currentTime;
+    const duration = Number.isFinite(player.duration) ? player.duration : entry?.end - entry?.start;
+    const opening = get("previa-texto-abertura");
+    const ending = get("previa-texto-encerramento");
+    opening.textContent = text.opening;
+    ending.textContent = text.ending;
+    const editable = entry && !entry.videoText;
+    opening.hidden = !(editable && text.opening && time < CLIP_HOOK_SECONDS);
+    ending.hidden = !(editable && text.ending && time >= duration - CLIP_CTA_SECONDS);
+  }
+
+  function updateScreenControls() {
+    const entry = records.get(selectedId);
+    const locked = editing || !entry || entry.videoText;
+    for (const control of [...Object.values(screenFields), get("ver-abertura"), get("ver-encerramento"), get("salvar-textos-video")]) {
+      control.disabled = Boolean(locked);
+    }
+    get("restaurar-base-video").hidden = !entry?.videoText;
+  }
 
   function sortedRecords() {
     return [...records.values()].sort((a, b) =>
@@ -70,40 +115,51 @@ export function mountLibrary() {
     const entry = records.get(id);
     selectedId = entry?.id;
     player.pause();
+    discardPreparedDownload();
     if (videoUrl) URL.revokeObjectURL(videoUrl);
     videoUrl = undefined;
     get("detalhes-corte").hidden = !entry;
     feedback.textContent = "";
+    screenFeedback.textContent = "";
+    downloadStatus.textContent = "";
+    restoreInput.value = "";
+    screenFields.opening.value = entry?.screenText?.opening ?? "";
+    screenFields.ending.value = entry?.screenText?.ending ?? "";
+    updateScreenControls();
     if (!entry) {
       player.removeAttribute("src");
       player.load();
       showCover({});
+      showScreenText();
       renderList();
       return;
     }
     videoUrl = URL.createObjectURL(entry.video);
-    const download = get("baixar-local");
-    player.src = download.href = videoUrl;
-    download.download = mediaName(entry) + ".mp4";
+    player.src = downloadVideo.href = videoUrl;
+    downloadVideo.download = mediaName(entry) + ".mp4";
     get("nome-corte").textContent = entry.title;
     get("info-corte").textContent = formatTime(entry.start) + "–" + formatTime(entry.end)
       + " do original · " + Math.round(entry.end - entry.start) + " s · 9:16";
-    get("aviso-texto-video").hidden = !entry.videoText;
     for (const [key, input] of Object.entries(fields)) {
       input.value = key === "tags" ? entry.tags.join(", ") : entry[key];
     }
+    coverFields.hook.value = entry.hook ?? "";
+    coverFields.cta.value = entry.cta ?? "";
     const replacementHook = replacementForFilenameHook(entry);
     if (replacementHook) {
-      fields.hook.value = replacementHook;
+      coverFields.hook.value = replacementHook;
       feedback.textContent = "O gancho anterior veio do nome do arquivo. Edite a sugestão ou clique em Atualizar capa.";
     }
     showCover(entry);
+    showScreenText();
     renderList();
   }
 
   function setEditing(value) {
     editing = value;
     for (const button of actions) button.disabled = value;
+    downloadVideo.setAttribute("aria-disabled", String(value));
+    updateScreenControls();
   }
 
   function fieldValues() {
@@ -114,8 +170,8 @@ export function mountLibrary() {
       const key = tag.toLocaleLowerCase("pt-BR");
       if (!tags.has(key)) tags.set(key, tag);
     }
-    if (!text.title || !text.description || !text.hook || !text.cta || tags.size < 5) {
-      feedback.textContent = "Preencha o título, a descrição, o gancho e o CTA, com pelo menos 5 tags diferentes.";
+    if (!text.title || !text.description || tags.size < 5) {
+      feedback.textContent = "Preencha o título, a descrição e pelo menos 5 tags diferentes.";
       return;
     }
     return { ...text, tags: [...tags.values()] };
@@ -137,7 +193,9 @@ export function mountLibrary() {
   async function applyEdits(rebuildCover, frameTime) {
     const entry = records.get(selectedId);
     if (!entry || editing) return;
-    const edits = fieldValues();
+    const edits = rebuildCover
+      ? { hook: coverFields.hook.value.trim(), cta: coverFields.cta.value.trim() }
+      : fieldValues();
     if (!edits) return;
     setEditing(true);
     feedback.textContent = rebuildCover ? "Criando a capa…" : "Salvando o texto…";
@@ -156,7 +214,7 @@ export function mountLibrary() {
         get("nome-corte").textContent = updated.title;
         if (rebuildCover) showCover(updated);
         feedback.textContent = saved
-          ? (rebuildCover ? "Capa e texto atualizados." : "Texto salvo.")
+          ? (rebuildCover ? "Capa atualizada." : "Publicação salva.")
           : "Alterações disponíveis nesta aba.";
       }
     } catch (error) {
@@ -167,6 +225,132 @@ export function mountLibrary() {
       setEditing(false);
     }
   }
+
+  for (const event of ["loadedmetadata", "seeking", "seeked", "timeupdate"]) {
+    player.addEventListener(event, showScreenText);
+  }
+  screenForm.addEventListener("input", event => {
+    if (event.target !== screenFields.opening && event.target !== screenFields.ending) return;
+    discardPreparedDownload();
+    downloadStatus.textContent = "";
+    showScreenText();
+  });
+  for (const [id, ending] of [["ver-abertura", false], ["ver-encerramento", true]]) {
+    get(id).addEventListener("click", () => {
+      if (!Number.isFinite(player.duration)) {
+        screenFeedback.textContent = "Aguarde a prévia carregar.";
+        return;
+      }
+      player.pause();
+      player.currentTime = ending ? Math.max(0, player.duration - CLIP_CTA_SECONDS + .15) : 0;
+      showScreenText();
+      player.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  async function saveScreenText(entry, screenText) {
+    const updated = { ...entry, screenText };
+    records.set(updated.id, updated);
+    return persist(updated);
+  }
+
+  screenForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const entry = records.get(selectedId);
+    if (!entry || editing || entry.videoText) return;
+    setEditing(true);
+    try {
+      const saved = await saveScreenText(entry, screenValues());
+      if (selectedId === entry.id) {
+        screenFeedback.textContent = saved ? "Textos do vídeo salvos." : "Textos disponíveis nesta aba.";
+      }
+    } finally {
+      setEditing(false);
+    }
+  });
+
+  downloadVideo.addEventListener("click", async event => {
+    const entry = records.get(selectedId);
+    if (editing || !entry) {
+      event.preventDefault();
+      return;
+    }
+    if (entry.videoText || preparedUrl) return;
+    const screenText = screenValues();
+    const hasText = screenText.opening || screenText.ending;
+    const changed = screenText.opening !== (entry.screenText?.opening ?? "")
+      || screenText.ending !== (entry.screenText?.ending ?? "");
+    if (!hasText && !changed) return;
+    event.preventDefault();
+    setEditing(true);
+    downloadStatus.textContent = "Preparando o MP4…";
+    try {
+      let output = entry.video;
+      if (hasText) {
+        const { renderScreenText } = await import("./video-local.js");
+        output = await renderScreenText(entry.video, {
+          ...screenText,
+          onProgress: fraction => {
+            if (selectedId === entry.id) {
+              downloadStatus.textContent = "Exportando o texto no MP4… " + Math.round(fraction * 100) + "%";
+            }
+          },
+        });
+      }
+      const saved = !changed || await saveScreenText(entry, screenText);
+      const url = URL.createObjectURL(output);
+      if (selectedId === entry.id) {
+        preparedUrl = url;
+        downloadVideo.href = url;
+        downloadStatus.textContent = saved ? "MP4 pronto para baixar." : "MP4 pronto. Os textos ficaram nesta aba.";
+      } else {
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = mediaName(entry) + ".mp4";
+      document.body.append(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      if (selectedId === entry.id) downloadStatus.textContent = error.message || "Não foi possível exportar o MP4.";
+    } finally {
+      setEditing(false);
+    }
+  });
+
+  get("recuperar-textos-video").addEventListener("click", async () => {
+    const entry = records.get(selectedId);
+    if (!entry?.videoText || editing) return;
+    const original = restoreInput.files?.[0];
+    if (!original || !/\.(mp4|mov)$/i.test(original.name)) {
+      screenFeedback.textContent = "Selecione o MP4 ou MOV original usado nesse corte.";
+      return;
+    }
+    setEditing(true);
+    screenFeedback.textContent = "Abrindo o vídeo original…";
+    let session;
+    try {
+      const { createVideoSession } = await import("./video-local.js");
+      session = await createVideoSession(original);
+      const video = await session.render(entry.start, fraction => {
+        if (selectedId === entry.id) screenFeedback.textContent = "Recuperando o trecho… " + Math.round(fraction * 100) + "%";
+      }, { seconds: Math.round(entry.end - entry.start) });
+      const updated = { ...entry, video, videoText: false, screenText: { opening: "", ending: "" } };
+      const saved = await persist(updated);
+      records.set(entry.id, updated);
+      if (selectedId === entry.id) {
+        select(entry.id);
+        screenFeedback.textContent = saved ? "Trecho recuperado. Agora você pode escrever na tela."
+          : "Trecho recuperado nesta aba. Agora você pode escrever na tela.";
+      }
+    } catch (error) {
+      if (selectedId === entry.id) screenFeedback.textContent = error.message || "Não foi possível recuperar o corte.";
+    } finally {
+      session?.close();
+      setEditing(false);
+    }
+  });
 
   form.addEventListener("submit", event => {
     event.preventDefault();
@@ -226,16 +410,16 @@ export function mountLibrary() {
   const ready = loadLibrary();
 
   return {
-    async addGenerated({ filename, start, end, video, publication, createdAt, order, cueTime, videoText }, signal) {
+    async addGenerated({ filename, start, end, video, publication, createdAt, order, cueTime, screenText }, signal) {
       await ready;
       signal.throwIfAborted();
       const entry = {
         id: crypto.randomUUID(), createdAt, order, filename, start, end, video,
-        ...publication, cueTime, videoText, cover: null,
+        ...publication, cueTime, screenText, cover: null,
       };
       let coverError;
       try {
-        entry.cover = await generateCover(video, { ...publication, cueTime, videoText, signal });
+        entry.cover = await generateCover(video, { ...publication, cueTime, signal });
       } catch (error) {
         signal.throwIfAborted();
         coverError = error instanceof Error ? error.message : "Não foi possível gerar a capa.";

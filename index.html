@@ -66,7 +66,7 @@
 </div>
 </fieldset>
 <div class="origens quantidade">
-<label><input id="texto-no-video" type="checkbox" checked> Inserir gancho e CTA no MP4 com narração</label>
+<label><input id="texto-no-video" type="checkbox" checked> Preencher textos do vídeo pela narração</label>
 </div>
 <div class="acoes-locais">
 <button class="button" id="gerar-local" type="button" disabled>Gerar 1 corte</button>
@@ -104,13 +104,17 @@
 <div class="midia-dupla">
 <div>
 <h4>Vídeo</h4>
+<div class="video-corte-quadro">
 <video id="video-corte" controls playsinline preload="metadata" aria-label="Vídeo do corte selecionado"></video>
+<span class="previa-texto-video" id="previa-texto-abertura" aria-hidden="true" hidden></span>
+<span class="previa-texto-video" id="previa-texto-encerramento" aria-hidden="true" hidden></span>
+</div>
 </div>
 <div>
 <h4>Capa</h4>
 <div class="capa-preview">
-<img id="capa-corte" alt="Capa do corte com gancho e chamada para ação" hidden>
-<p id="capa-vazia">Gere uma capa com o gancho e a chamada para ação.</p>
+<img id="capa-corte" alt="Capa do corte" hidden>
+<p id="capa-vazia">Gere a capa a partir de um quadro do corte.</p>
 </div>
 </div>
 </div>
@@ -119,7 +123,29 @@
 <a class="button secondary" id="baixar-capa" download="gta-vi-capa.jpg" hidden>Baixar capa</a>
 <button class="text-button" id="excluir-corte" type="button">Excluir corte</button>
 </div>
+<p class="campo-ajuda" id="estado-download-video" role="status"></p>
 </section>
+<div class="editores-corte">
+<form class="pane" id="texto-video-form" aria-labelledby="titulo-textos-video">
+<h3 id="titulo-textos-video">Textos no vídeo</h3>
+<p class="campo-ajuda" id="ajuda-textos-video">O texto aparece nos primeiros 3,5 s ou nos últimos 4 s. Deixe um campo em branco para tirar o texto daquela parte.</p>
+<label for="texto-abertura">Abertura (opcional)</label>
+<input class="campo" id="texto-abertura" type="text" maxlength="80" aria-describedby="ajuda-textos-video">
+<label for="texto-encerramento">Encerramento (opcional)</label>
+<input class="campo" id="texto-encerramento" type="text" maxlength="48" aria-describedby="ajuda-textos-video">
+<div class="restaurar-base-video" id="restaurar-base-video" hidden>
+<p class="campo-ajuda" id="ajuda-restaurar-base">Este corte já tem texto gravado. Selecione o vídeo original para substituir o texto.</p>
+<label for="original-texto-video">Vídeo original em MP4 ou MOV</label>
+<input id="original-texto-video" type="file" accept=".mp4,.mov,video/mp4,video/quicktime" aria-describedby="ajuda-restaurar-base">
+<button class="button secondary" id="recuperar-textos-video" type="button">Recuperar corte</button>
+</div>
+<div class="acoes-locais">
+<button class="button secondary" id="ver-abertura" type="button" aria-controls="video-corte">Ver abertura</button>
+<button class="button secondary" id="ver-encerramento" type="button" aria-controls="video-corte">Ver encerramento</button>
+<button class="button" id="salvar-textos-video" type="submit">Salvar textos</button>
+</div>
+<p id="estado-texto-video" role="status"></p>
+</form>
 <form class="pane" id="publicacao-form">
 <h3>Texto para publicar</h3>
 <label for="titulo-corte">Título</label>
@@ -131,14 +157,13 @@
 <p class="campo-ajuda" id="ajuda-tags">Separe 5 ou mais tags por vírgula.</p>
 <fieldset class="capa-campos">
 <legend>Texto da capa</legend>
-<label for="hook-corte">Gancho</label>
-<input class="campo" id="hook-corte" maxlength="80" required>
-<label for="cta-corte">Chamada para ação</label>
-<input class="campo" id="cta-corte" maxlength="48" required>
-<p class="campo-ajuda" id="aviso-texto-video" hidden>O MP4 inclui o gancho no início e a chamada no final. Estes campos atualizam o texto da publicação e da capa.</p>
+<label for="hook-corte">Gancho da capa (opcional)</label>
+<input class="campo" id="hook-corte" maxlength="80">
+<label for="cta-corte">Chamada da capa (opcional)</label>
+<input class="campo" id="cta-corte" maxlength="48">
 </fieldset>
 <div class="acoes-locais">
-<button class="button" id="salvar-texto" type="submit">Salvar texto</button>
+<button class="button" id="salvar-texto" type="submit">Salvar publicação</button>
 <button class="button secondary" id="copiar-texto" type="button">Copiar publicação</button>
 <button class="button secondary" id="refazer-capa" type="button">Atualizar capa</button>
 <button class="button secondary" id="usar-quadro" type="button" aria-describedby="ajuda-quadro">Usar quadro atual</button>
@@ -146,6 +171,7 @@
 <p class="campo-ajuda quadro-ajuda" id="ajuda-quadro">Pause a prévia na cena que você quer usar na capa.</p>
 <p id="estado-publicacao" role="status"></p>
 </form>
+</div>
 </div>
 </section>
 

@@ -1,7 +1,7 @@
 import { formatTime, selectClips, selectVisualClips } from "./clip-local.js";
 import { generatePublication } from "./publication-local.js";
 import { mountLibrary } from "./studio-library.js";
-import { createClipTextLayer, sampleVisualActivity } from "./cover-local.js";
+import { sampleVisualActivity } from "./cover-local.js";
 const input = document.querySelector("#entrada");
 const video = document.querySelector("#video");
 const downloadOriginal = document.querySelector("#baixar-original");
@@ -218,23 +218,15 @@ async function runJob(file) {
       const label = (order + 1) + " de " + clips.length;
       const publication = generatePublication({ ...clip, language: language.value });
       const cueTime = publication.cueTime ?? (clip.hook ? clip.hook.start - clip.start : undefined);
-      const videoText = videoTextEnabled && !visual;
-      let textLayers;
-      if (videoText) {
-        phase = "preparar o gancho e a chamada para ação do corte " + label;
-        report(step, "Criando o gancho e a chamada para ação do corte " + label + "…");
-        const [hook, cta] = await Promise.all([
-          createClipTextLayer(publication.hook, { signal }),
-          createClipTextLayer(publication.cta, { action: true, signal }),
-        ]);
-        textLayers = { hook, cta };
-      }
+      const screenText = videoTextEnabled && !visual
+        ? { opening: publication.hook, ending: publication.cta }
+        : { opening: "", ending: "" };
       phase = "exportar o corte " + label;
       const exporting = "Exportando corte " + label + " em 9:16…";
       report(step, exporting);
       const output = await videoSession.render(clip.start, fraction => {
         report(step + span * .84 * fraction, exporting);
-      }, { seconds, textLayers });
+      }, { seconds });
       signal.throwIfAborted();
       if (order === clips.length - 1) {
         videoSession.close();
@@ -244,7 +236,7 @@ async function runJob(file) {
       report(step + span * .84, "Criando a capa do corte " + label + "…");
       const stored = await library.addGenerated({
         filename: file.name, start: clip.start, end: clip.end, video: output,
-        publication, createdAt, order, cueTime, videoText,
+        publication, createdAt, order, cueTime, screenText,
       }, signal);
       completed++;
       if (stored) saved++;

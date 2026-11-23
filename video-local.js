@@ -1,6 +1,6 @@
 import { FFmpeg } from "./vendor/ffmpeg-0.12.15/index.js";
 import { CLIP_LENGTHS, CLIP_SECONDS } from "./clip-local.js";
-import { CLIP_HOOK_SECONDS, CLIP_CTA_SECONDS } from "./cover-local.js";
+import { CLIP_HOOK_SECONDS, CLIP_CTA_SECONDS, createClipTextLayer } from "./cover-local.js";
 
 const CORE_BASE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
 const MAX_INPUT_SIZE = 2 * 1024 * 1024 * 1024;
@@ -13,6 +13,24 @@ const VIDEO_FILTER = [
   "[f]scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1[fg]",
   "[bg][fg]overlay=(W-w)/2:(H-h)/2:shortest=1,format=yuv420p[v]",
 ].join(";");
+
+function addTextLayers(baseFilters, baseStream, layers, seconds) {
+  const inputFiles = [];
+  const filters = [...baseFilters];
+  let stream = baseStream;
+  for (const [file, path, y, when] of [
+    [layers?.hook, "/gancho.png", 176, "lt(t," + CLIP_HOOK_SECONDS + ")"],
+    [layers?.cta, "/cta.png", 1260, "gte(t," + Math.max(0, seconds - CLIP_CTA_SECONDS) + ")"],
+  ]) {
+    if (!file) continue;
+    inputFiles.push([path, file]);
+    const index = inputFiles.length;
+    const next = "[text" + index + "]";
+    filters.push(stream + "[" + index + ":v]overlay=0:" + y + ":format=auto:enable='" + when + "'" + next);
+    stream = next;
+  }
+  return { inputFiles, filter: filters.join(";"), stream };
+}
 
 function withDeadline(operation, milliseconds, message) {
   let timer;
@@ -48,7 +66,7 @@ function readIntoMemory(file, signal) {
   });
 }
 
-export async function createVideoSession(file, onProgress = () => {}, { signal } = {}) {
+async function openVideo(file, onProgress, { signal, minimumDuration = CLIP_LENGTHS[0] }) {
   signal?.throwIfAborted();
   if (!(file instanceof Blob) || !file.size || file.size > MAX_INPUT_SIZE) {
     throw new Error("Selecione um vídeo de até 2 GB.");
@@ -135,8 +153,10 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
     const lengths = [video.duration, metadata.format?.duration].map(Number)
       .filter(value => Number.isFinite(value) && value > 0);
     duration = Math.min(...lengths);
-    if (!Number.isFinite(duration) || duration < CLIP_LENGTHS[0] || duration > MAX_DURATION) {
-      throw new Error("Escolha um vídeo com duração entre 30 segundos e 2 horas.");
+    if (!Number.isFinite(duration) || duration < minimumDuration || duration > MAX_DURATION) {
+      throw new Error(minimumDuration
+        ? "Escolha um vídeo com duração entre 30 segundos e 2 horas."
+        : "Não foi possível determinar a duração do corte.");
     }
     await ffmpeg.deleteFile("/video.json");
     onProgress(1, "Vídeo pronto");
@@ -181,6 +201,12 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
     }
   }
 
+  return { duration, hasAudio, source, checkOpen, exportMedia, close };
+}
+
+export async function createVideoSession(file, onProgress = () => {}, { signal } = {}) {
+  const { duration, hasAudio, source, checkOpen, exportMedia, close } = await openVideo(file, onProgress, { signal });
+
   async function extractAudio(start, length, onAudioProgress = () => {}) {
     checkOpen();
     if (!Number.isFinite(start) || !Number.isFinite(length) || start < 0
@@ -207,16 +233,12 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
       throw new Error("O trecho escolhido precisa conter " + seconds + " segundos de vídeo.");
     }
     const start = Math.min(startSeconds, duration - seconds);
-    const inputFiles = textLayers ? [["/gancho.png", textLayers.hook], ["/cta.png", textLayers.cta]] : [];
-    const filter = textLayers
-      ? VIDEO_FILTER + ";[v][1:v]overlay=0:176:format=auto:enable='lt(t," + CLIP_HOOK_SECONDS + ")'[intro];"
-        + "[intro][2:v]overlay=0:1260:format=auto:enable='gte(t," + (seconds - CLIP_CTA_SECONDS) + ")',format=yuv420p[text]"
-      : VIDEO_FILTER;
+    const { inputFiles, filter, stream } = addTextLayers([VIDEO_FILTER], "[v]", textLayers, seconds);
     return exportMedia([
       "-threads", "1", "-ss", start.toFixed(6), "-i", source,
       ...inputFiles.flatMap(([path]) => ["-i", path]),
       "-t", String(seconds), "-filter_complex_threads", "1", "-filter_complex", filter,
-      "-map", textLayers ? "[text]" : "[v]", "-map", "0:a:0?",
+      "-map", stream, "-map", "0:a:0?",
       "-c:v", "libx264", "-threads", "1", "-preset", "ultrafast", "-crf", "23",
       "-fpsmax", "30", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
     ], {
@@ -228,4 +250,42 @@ export async function createVideoSession(file, onProgress = () => {}, { signal }
   }
 
   return { duration, hasAudio, extractAudio, render, close };
+}
+
+export async function renderScreenText(videoBlob, { opening, ending, signal, onProgress = () => {} } = {}) {
+  signal?.throwIfAborted();
+  const firstText = String(opening ?? "").trim();
+  const lastText = String(ending ?? "").trim();
+  if (!firstText && !lastText) {
+    onProgress(1, "MP4 pronto");
+    return videoBlob;
+  }
+
+  onProgress(0, "Preparando o texto do corte");
+  const [hook, cta] = await Promise.all([
+    firstText ? createClipTextLayer(firstText, { signal }) : null,
+    lastText ? createClipTextLayer(lastText, { action: true, signal }) : null,
+  ]);
+  const session = await openVideo(videoBlob, (fraction, label) => onProgress(.04 + fraction * (.18 - .04), label),
+    { signal, minimumDuration: 0 });
+  try {
+    const { duration, source, exportMedia } = session;
+    const { inputFiles, filter, stream } = addTextLayers([], "[0:V:0]", { hook, cta }, duration);
+    return await exportMedia([
+      "-threads", "1", "-i", source,
+      ...inputFiles.flatMap(([path]) => ["-i", path]),
+      "-filter_complex_threads", "1", "-filter_complex", filter,
+      "-map", stream, "-map", "0:a:0?", "-c:a", "copy",
+      "-c:v", "libx264", "-threads", "1", "-preset", "ultrafast", "-crf", "23",
+      "-fps_mode", "passthrough", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+    ], {
+      output: "/corte.mp4", type: "video/mp4", seconds: duration, inputFiles,
+      onUpdate: (fraction, label) => onProgress(.18 + fraction * .82, label),
+      label: "Gravando texto no corte", done: "MP4 pronto",
+      timeout: 600_000, timeoutMessage: "A exportação excedeu o tempo disponível neste dispositivo.",
+      failure: "Não foi possível gravar o texto no corte.",
+    });
+  } finally {
+    session.close();
+  }
 }

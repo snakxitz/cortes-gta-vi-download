@@ -6,8 +6,10 @@ Use o estúdio para gerar 1, 3 ou 5 cortes verticais de 30 ou 65 segundos de um 
 
 1. Após ativar o GitHub Pages, abra o [Cortes GTA VI no navegador](https://snakxitz.github.io/cortes-gta-vi-download/#estudio).
 2. Selecione um MP4 ou MOV. Para gameplay sem fala, música ou vídeo mudo, escolha **Sem narração** no estúdio.
-3. Escolha o idioma da narração, a duração e a quantidade. A opção **Inserir gancho e CTA no MP4 com narração** acrescenta o gancho no início e a chamada no final. Clique em **Gerar corte**.
-4. Use a biblioteca para assistir aos cortes, editar os textos da publicação e da capa e baixar os arquivos.
+3. Escolha o idioma da narração, a duração e a quantidade. A opção **Preencher textos do vídeo pela narração** sugere a abertura e o encerramento. Clique em **Gerar corte**.
+4. Na biblioteca, edite **Textos no vídeo** e confira a abertura e o encerramento. **Baixar MP4** aplica esses textos ao arquivo. Edite **Texto da capa** separadamente e clique em **Atualizar capa** ou **Usar quadro atual** antes de baixar a imagem.
+
+Em um corte antigo com texto gravado no MP4, selecione o vídeo original e clique em **Recuperar corte** para liberar a edição.
 
 O processamento roda no navegador. O motor de vídeo é baixado na primeira execução. O modelo de transcrição é baixado ao analisar a fala pela primeira vez. No modo sem narração, o estúdio sugere trechos pela variação entre quadros ou distribui os cortes pelo vídeo quando o navegador não consegue analisar as imagens. A biblioteca fica no navegador usado para criar os cortes.
 
