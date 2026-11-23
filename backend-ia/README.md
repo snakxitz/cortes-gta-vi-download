@@ -4,7 +4,7 @@
 
 **Arquitetura:** o navegador transcreve o áudio do corte com Whisper e envia o texto ao Cloudflare Worker. O Worker solicita o roteiro ao Gemini Developer API. O MP3 é gerado manualmente no ElevenLabs e depois importado.
 
-**Custo:** cortar, transcrever localmente e exportar não gasta tokens da API Gemini. Apenas **Gerar roteiro com IA** envia dados ao Gemini. Use o **nível gratuito do Gemini Developer API** com o modelo `gemini-3.5-flash-lite`, se disponível no projeto e na região. O nível gratuito está sujeito a cotas, disponibilidade e mudanças: ao atingir a cota, o serviço retorna um erro; confirme que o projeto não tem faturamento vinculado se não quiser custos. **Não habilite faturamento** no projeto se sua prioridade absoluta for não pagar. Cloudflare Workers pode ter cota gratuita conforme o plano. Consulte os painéis para confirmar limites e consumo.
+**Custo:** cortar, transcrever localmente e exportar não gasta tokens da API Gemini. Apenas **Gerar roteiro com IA** envia dados ao Gemini. Use o **nível gratuito do Gemini Developer API** se disponível no projeto e na região. O Worker usa `gemini-3.5-flash-lite` e, se a API retornar uma falha temporária, tenta `gemini-3.1-flash-lite` uma vez com a mesma chave. Confirme no Google AI Studio que o projeto usa o nível gratuito. As cotas variam conforme a conta. Consulte também o plano do Cloudflare Workers.
 
 ### Configurar pelo navegador, sem instalar programas no computador
 
@@ -46,7 +46,7 @@ Na versão com roteiro por transcrição, selecione um corte com fala. O editor 
 6. Copie a URL `https://...workers.dev` fornecida pela Cloudflare.
 7. Abra o **Modo Aprimorado**, importe um vídeo, escolha um corte, informe a URL do Worker e o código de acesso e clique em **Gerar roteiro com IA**.
 
-**Não coloque chaves Gemini ou o código do editor em arquivos públicos, prints ou mensagens.** O modelo usado é `gemini-3.5-flash-lite`. O acesso gratuito depende dos limites e da disponibilidade da sua chave/projeto.
+**Não coloque chaves Gemini ou o código do editor em arquivos públicos, prints ou mensagens.** O acesso aos modelos depende da disponibilidade e dos limites do projeto.
 
 ## Fluxo de vídeo
 

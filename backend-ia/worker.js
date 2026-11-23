@@ -1,7 +1,8 @@
 // Gateway pessoal para roteiros GTA VI. Chaves são segredos do Cloudflare Worker, nunca do GitHub Pages.
-// Provedor: Gemini Developer API, modelo com modalidade gratuita: gemini-3.5-flash-lite.
+// Provedor: Gemini Developer API, com dois modelos disponíveis no nível gratuito.
 const ALLOWED_ORIGIN = 'https://snakxitz.github.io';
-const MODEL = 'gemini-3.5-flash-lite';
+const PRIMARY_MODEL = 'gemini-3.5-flash-lite';
+const FALLBACK_MODEL = 'gemini-3.1-flash-lite';
 const MAX_REQUEST_CHARS = 2_300_000;
 const MAX_TRANSCRIPT_CHARS = 3000;
 const TEMPORARY_GEMINI_ERRORS = new Set([500, 502, 503, 504]);
@@ -30,7 +31,6 @@ function sameSecret(a, b) {
 }
 
 async function requestGemini(apiKey, body) {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + MODEL + ':generateContent';
   const options = {
     method: 'POST',
     headers: {
@@ -39,12 +39,16 @@ async function requestGemini(apiKey, body) {
     },
     body: JSON.stringify(body)
   };
-  const send = () => fetch(url, { ...options, signal: AbortSignal.timeout(30_000) });
-  const first = await send();
-  if (!TEMPORARY_GEMINI_ERRORS.has(first.status)) return first;
+  const send = model => fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent',
+    { ...options, signal: AbortSignal.timeout(30_000) }
+  );
+  const first = await send(PRIMARY_MODEL);
+  if (!TEMPORARY_GEMINI_ERRORS.has(first.status)) return { response: first, model: PRIMARY_MODEL };
+  console.warn('Gemini indisponível, tentando modelo alternativo', { status: first.status, model: PRIMARY_MODEL });
   await first.body?.cancel().catch(() => {});
   await new Promise(resolve => setTimeout(resolve, 750 + Math.random() * 500));
-  return send();
+  return { response: await send(FALLBACK_MODEL), model: FALLBACK_MODEL };
 }
 
 function geminiError(status) {
@@ -61,7 +65,7 @@ function geminiError(status) {
     erro: 'O modelo Gemini não está disponível para esta chave ou região (HTTP 404).'
   }, 502);
   if (TEMPORARY_GEMINI_ERRORS.has(status)) return respond({
-    erro: 'O Gemini continua temporariamente indisponível após duas tentativas (HTTP ' + status + '). Tente novamente em alguns minutos.'
+    erro: 'Os dois modelos do Gemini estão temporariamente indisponíveis (HTTP ' + status + '). Você pode usar “Copiar briefing para criar roteiro com IA” para aproveitar a transcrição em outro editor.'
   }, 503);
   return respond({ erro: 'O Gemini recusou a geração (HTTP ' + status + '). Confira o projeto no Google AI Studio.' }, 502);
 }
@@ -107,7 +111,7 @@ export default {
       }});
     }
     if (path === '/health' && request.method === 'GET') {
-      return respond({ ok: true, provider: 'gemini', model: MODEL });
+      return respond({ ok: true, provider: 'gemini', model: PRIMARY_MODEL, fallbackModel: FALLBACK_MODEL });
     }
     if (path !== '/api/roteiro') return respond({ erro: 'Rota não encontrada.' }, 404);
     if (request.method !== 'POST') return respond({ erro: 'Método não permitido.' }, 405);
@@ -163,14 +167,15 @@ export default {
       return respond({ erro: 'Não foi possível conectar ao Gemini.' }, 502);
     }
 
-    if (!provider.ok) {
-      console.warn('Gemini generateContent', { status: provider.status, model: MODEL });
-      return geminiError(provider.status);
+    const { response, model } = provider;
+    if (!response.ok) {
+      console.warn('Gemini generateContent', { status: response.status, model });
+      return geminiError(response.status);
     }
 
     let generated;
     try {
-      const data = await provider.json();
+      const data = await response.json();
       const text = (data.candidates?.[0]?.content?.parts || [])
         .filter(item => typeof item.text === 'string')
         .map(item => item.text)
